@@ -1,4 +1,0 @@
-{"method":"GET","path":"/users/1","headers":{},"body":null}
-{"method":"POST","path":"/checkout","headers":{"Content-Type":"application/json"},"body":{"user_id":1,"items":[1,2]}}
-{"method":"GET","path":"/slow","headers":{},"body":null}
-{"method":"GET","path":"/status","headers":{},"body":null}

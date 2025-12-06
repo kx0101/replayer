@@ -29,5 +29,10 @@ func main() {
 
 	results := replay.Run(filtered, args)
 
-	summary.PrintSummary(results)
+	if args.OutputJSON {
+		summary.PrintJSONOutput(results)
+		os.Exit(0)
+	}
+
+	summary.PrintSummary(results, args.Compare)
 }

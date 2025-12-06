@@ -17,6 +17,10 @@ type CliArgs struct {
 	FilterPath   string
 	DryRun       bool
 	SummaryOnly  bool
+	OutputJSON   bool
+	Compare      bool
+	RateLimit    int
+	ProgressBar  bool
 }
 
 func ParseArgs() *CliArgs {
@@ -31,6 +35,10 @@ func ParseArgs() *CliArgs {
 	flag.StringVar(&args.FilterPath, "filter-path", "", "Filter path (e.g., /api/resource)")
 	flag.BoolVar(&args.DryRun, "dry-run", false, "Enable dry run mode")
 	flag.BoolVar(&args.SummaryOnly, "summary-only", false, "Output summary only")
+	flag.BoolVar(&args.OutputJSON, "output-json", false, "Output results as JSON")
+	flag.BoolVar(&args.Compare, "compare", false, "Compare responses between targets")
+	flag.IntVar(&args.RateLimit, "rate-limit", 0, "Maximum requests per second (0 = unlimited)")
+	flag.BoolVar(&args.ProgressBar, "progress", true, "Show progress bar")
 
 	flag.Parse()
 
@@ -38,6 +46,12 @@ func ParseArgs() *CliArgs {
 
 	if args.InputFile == "" {
 		fmt.Fprintln(os.Stderr, "Error: --input-file is required")
+		flag.Usage()
+		os.Exit(1)
+	}
+
+	if len(args.Targets) == 0 && !args.DryRun {
+		fmt.Fprintln(os.Stderr, "Error: at least one target is required")
 		flag.Usage()
 		os.Exit(1)
 	}
