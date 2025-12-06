@@ -2,7 +2,7 @@ package summary
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/kx0101/replayer/models"
 )
@@ -65,9 +65,7 @@ func PrintSummary(results []models.MultiEnvResult) {
 		}
 	}
 
-	sort.Slice(latencies, func(i, j int) bool {
-		return latencies[i] < latencies[j]
-	})
+	slices.Sort(latencies)
 
 	p50 := percentile(latencies, 50)
 	p95 := percentile(latencies, 95)
