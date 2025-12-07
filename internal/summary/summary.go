@@ -6,7 +6,7 @@ import (
 	"os"
 	"slices"
 
-	"github.com/kx0101/replayer/models"
+	"github.com/kx0101/replayer/internal/models"
 )
 
 const (

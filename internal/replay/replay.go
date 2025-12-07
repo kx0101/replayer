@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/kx0101/replayer/cli"
-	"github.com/kx0101/replayer/models"
-	"github.com/kx0101/replayer/progress"
+	"github.com/kx0101/replayer/internal/cli"
+	"github.com/kx0101/replayer/internal/models"
+	"github.com/kx0101/replayer/internal/progress"
 )
 
 func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
@@ -134,7 +134,18 @@ func replaySingle(index int, entry models.LogEntry, client *http.Client, target 
 	defer resp.Body.Close()
 
 	status := resp.StatusCode
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		errStr := err.Error()
+		return models.ReplayResult{
+			Index:     index,
+			Status:    nil,
+			LatencyMs: latencyMs,
+			Error:     &errStr,
+			Body:      nil,
+		}
+	}
+
 	bodyStr := string(bodyBytes)
 
 	return models.ReplayResult{

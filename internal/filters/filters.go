@@ -1,8 +1,8 @@
 package filters
 
 import (
-	"github.com/kx0101/replayer/cli"
-	"github.com/kx0101/replayer/models"
+	"github.com/kx0101/replayer/internal/cli"
+	"github.com/kx0101/replayer/internal/models"
 	"strings"
 )
 

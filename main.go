@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/kx0101/replayer/cli"
-	"github.com/kx0101/replayer/filters"
-	"github.com/kx0101/replayer/reader"
-	"github.com/kx0101/replayer/replay"
-	"github.com/kx0101/replayer/summary"
+	"github.com/kx0101/replayer/internal/cli"
+	"github.com/kx0101/replayer/internal/filters"
+	"github.com/kx0101/replayer/internal/reader"
+	"github.com/kx0101/replayer/internal/replay"
+	"github.com/kx0101/replayer/internal/summary"
 )
 
 func main() {

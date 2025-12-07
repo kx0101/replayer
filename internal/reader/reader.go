@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/kx0101/replayer/cli"
-	"github.com/kx0101/replayer/models"
+	"github.com/kx0101/replayer/internal/cli"
+	"github.com/kx0101/replayer/internal/models"
 )
 
 func ReadEntries(args *cli.CliArgs) ([]models.LogEntry, error) {
