@@ -47,7 +47,7 @@ func main() {
 	mux.HandleFunc("/status", handlers.statusHandler)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
-	fmt.Printf("Server v2 running on http://%s/\n", *version, addr)
+	fmt.Printf("Server v1 running on http://%s/\n", addr)
 
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
