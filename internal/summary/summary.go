@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/kx0101/replayer/internal/models"
+	"github.com/kx0101/replayer/internal/stats"
 )
 
 const (
@@ -21,200 +22,156 @@ const (
 func PrintSummary(results []models.MultiEnvResult, compare bool) {
 	fmt.Println(ColorBold + "==== Summary ====" + ColorReset)
 
-	var totalRequests int
-	var succeeded int
-	var failed int
-	var latencies []int64
-	targetStats := make(map[string]*models.TargetStats)
+	agg := AggregateResults(results)
+	diffCount := 0
 
-	if len(results) > 0 {
-		for target := range results[0].Responses {
-			targetStats[target] = &models.TargetStats{
-				Succeeded: 0,
-				Failed:    0,
+	if compare {
+		for _, r := range results {
+			if r.Diff != nil {
+				diffCount++
 			}
 		}
 	}
 
-	diffCount := 0
+	printResults(results, diffCount, compare, agg)
+}
 
-	for _, result := range results {
-		for target, replay := range result.Responses {
+func AggregateResults(results []models.MultiEnvResult) models.AggregatedStats {
+	targetStats := map[string]*models.TargetStats{}
+	if len(results) > 0 {
+		for target := range results[0].Responses {
+			targetStats[target] = &models.TargetStats{}
+		}
+	}
+
+	var totalRequests, succeeded, failed int
+	var latencies []int64
+
+	for _, r := range results {
+		for target, replay := range r.Responses {
 			totalRequests++
-
-			stats := targetStats[target]
+			ts := targetStats[target]
 
 			if replay.Status != nil && *replay.Status < 400 {
 				succeeded++
-				stats.Succeeded++
+				ts.Succeeded++
 			} else {
 				failed++
-				stats.Failed++
+				ts.Failed++
 			}
 
 			latencies = append(latencies, replay.LatencyMs)
+		}
+	}
 
-			var statusColor string
-			var statusStr string
-
-			if replay.Status != nil {
-				statusStr = fmt.Sprintf("%d", *replay.Status)
-				if *replay.Status < 400 {
-					statusColor = ColorGreen
-				} else {
-					statusColor = ColorYellow
-				}
-			} else {
-				statusStr = "ERR"
-				statusColor = ColorRed
+	for target, ts := range targetStats {
+		var targetLat []int64
+		for _, r := range results {
+			if replay, ok := r.Responses[target]; ok {
+				targetLat = append(targetLat, replay.LatencyMs)
 			}
+		}
 
+		ts.Latency = stats.CalculateLatencyStats(targetLat)
+	}
+
+	return models.AggregatedStats{
+		TotalRequests: totalRequests,
+		Succeeded:     succeeded,
+		Failed:        failed,
+		Latencies:     latencies,
+		TargetStats:   targetStats,
+	}
+}
+
+func printResults(results []models.MultiEnvResult, diffCount int, compare bool, agg models.AggregatedStats) {
+	slices.Sort(agg.Latencies)
+	overallLatency := stats.CalculateLatencyStats(agg.Latencies)
+
+	fmt.Printf("Total Requests: %d\nSucceeded: %s%d%s\nFailed: %s%d%s\n",
+		agg.TotalRequests, ColorGreen, agg.Succeeded, ColorReset, ColorRed, agg.Failed, ColorReset)
+
+	if compare && diffCount > 0 {
+		fmt.Printf("Differences: %s%d%s\n", ColorYellow, diffCount, ColorReset)
+	}
+
+	fmt.Println("\nLatency (ms):")
+	printLatencyStats(overallLatency)
+
+	if len(agg.TargetStats) > 1 {
+		fmt.Println("\nPer-Target Statistics:")
+
+		for target, ts := range agg.TargetStats {
+			fmt.Printf("\n%s%s:%s\n  Succeeded: %d\n  Failed: %d\n  Latency:\n", ColorCyan, target, ColorReset, ts.Succeeded, ts.Failed)
+			printLatencyStats(ts.Latency)
+		}
+	}
+
+	if len(results) == 0 {
+		return
+	}
+
+	for _, r := range results {
+		for target, replay := range r.Responses {
+			statusStr, color := formatStatus(replay.Status)
 			errMsg := ""
 			if replay.Error != nil {
 				errMsg = fmt.Sprintf(" (%s)", *replay.Error)
 			}
 
-			fmt.Printf("[%d][%s] %s%s%s -> %dms%s\n",
-				result.Index,
-				target,
-				statusColor,
-				statusStr,
-				ColorReset,
-				replay.LatencyMs,
-				errMsg,
-			)
+			fmt.Printf("[%d][%s] %s%s%s -> %dms%s\n", r.Index, target, color, statusStr, ColorReset, replay.LatencyMs, errMsg)
 		}
 
-		if compare && result.Diff != nil {
-			diffCount++
-			printDiff(result)
-		}
-	}
-
-	slices.Sort(latencies)
-
-	overallLatency := calculateLatencyStats(latencies)
-
-	for target, stats := range targetStats {
-		var targetLatencies []int64
-
-		for _, result := range results {
-			if replay, ok := result.Responses[target]; ok {
-				targetLatencies = append(targetLatencies, replay.LatencyMs)
-			}
-		}
-
-		stats.Latency = calculateLatencyStats(targetLatencies)
-	}
-
-	fmt.Println()
-	fmt.Printf("%sOverall Statistics:%s\n", ColorBold, ColorReset)
-	fmt.Printf("Total Requests: %d\n", totalRequests)
-	fmt.Printf("Succeeded:      %s%d%s\n", ColorGreen, succeeded, ColorReset)
-	fmt.Printf("Failed:         %s%d%s\n", ColorRed, failed, ColorReset)
-
-	if compare && diffCount > 0 {
-		fmt.Printf("Differences:    %s%d%s\n", ColorYellow, diffCount, ColorReset)
-	}
-
-	fmt.Println()
-	fmt.Println("Latency (ms):")
-	printLatencyStats(overallLatency)
-
-	if len(targetStats) > 1 {
-		fmt.Println()
-		fmt.Printf("%sPer-Target Statistics:%s\n", ColorBold, ColorReset)
-
-		for target, stats := range targetStats {
-			fmt.Printf("\n%s%s:%s\n", ColorCyan, target, ColorReset)
-			fmt.Printf("  Succeeded: %d\n", stats.Succeeded)
-			fmt.Printf("  Failed:    %d\n", stats.Failed)
-			fmt.Printf("  Latency:\n")
-
-			printLatencyStats(stats.Latency)
+		if compare && r.Diff != nil {
+			printDiff(r)
 		}
 	}
 }
 
 func printLatencyStats(stats models.LatencyStats) {
-	fmt.Printf("  min: %d\n", stats.Min)
-	fmt.Printf("  avg: %d\n", stats.Avg)
-	fmt.Printf("  p50: %d\n", stats.P50)
-	fmt.Printf("  p90: %d\n", stats.P90)
-	fmt.Printf("  p95: %d\n", stats.P95)
-	fmt.Printf("  p99: %d\n", stats.P99)
-	fmt.Printf("  max: %d\n", stats.Max)
+	fmt.Printf("  min: %d  avg: %d  p50: %d  p90: %d  p95: %d  p99: %d  max: %d\n", stats.Min, stats.Avg, stats.P50, stats.P90, stats.P95, stats.P99, stats.Max)
 }
 
-func calculateLatencyStats(latencies []int64) models.LatencyStats {
-	if len(latencies) == 0 {
-		return models.LatencyStats{}
+func formatStatus(status *int) (string, string) {
+	if status == nil {
+		return "ERR", ColorRed
 	}
 
-	sorted := make([]int64, len(latencies))
-	copy(sorted, latencies)
-	slices.Sort(sorted)
-
-	var sum int64
-	for _, lat := range sorted {
-		sum += lat
+	if *status < 400 {
+		return fmt.Sprintf("%d", *status), ColorGreen
+	} else if *status < 500 {
+		return fmt.Sprintf("%d", *status), ColorYellow
 	}
 
-	return models.LatencyStats{
-		P50: percentile(sorted, 50),
-		P90: percentile(sorted, 90),
-		P95: percentile(sorted, 95),
-		P99: percentile(sorted, 99),
-		Min: sorted[0],
-		Max: sorted[len(sorted)-1],
-		Avg: sum / int64(len(sorted)),
-	}
-}
-
-func percentile(latencies []int64, p int) int64 {
-	if len(latencies) == 0 {
-		return 0
-	}
-
-	idx := (len(latencies) * p / 100)
-	if idx >= len(latencies) {
-		idx = len(latencies) - 1
-	}
-
-	return latencies[idx]
+	return fmt.Sprintf("%d", *status), ColorRed
 }
 
 func printDiff(result models.MultiEnvResult) {
-	if result.Diff == nil {
+	diff := result.Diff
+	if diff == nil {
 		return
 	}
 
 	fmt.Printf("%s  [DIFF] Request %d:%s\n", ColorYellow, result.Index, ColorReset)
-
-	if result.Diff.StatusMismatch {
+	if diff.StatusMismatch {
 		fmt.Printf("    Status codes differ: ")
-
-		for target, status := range result.Diff.StatusCodes {
+		for target, status := range diff.StatusCodes {
 			fmt.Printf("%s=%d ", target, status)
 		}
 
 		fmt.Println()
 	}
 
-	if result.Diff.BodyMismatch {
+	if diff.BodyMismatch {
 		fmt.Printf("    Response bodies differ\n")
-
-		if len(result.Diff.BodyDiffs) > 0 {
-			for target, body := range result.Diff.BodyDiffs {
-				fmt.Printf("      %s: %s\n", target, body)
-			}
+		for target, body := range diff.BodyDiffs {
+			fmt.Printf("      %s: %s\n", target, body)
 		}
 	}
 
-	if len(result.Diff.LatencyDiff) > 1 {
+	if len(diff.LatencyDiff) > 1 {
 		fmt.Printf("    Latency: ")
-
-		for target, lat := range result.Diff.LatencyDiff {
+		for target, lat := range diff.LatencyDiff {
 			fmt.Printf("%s=%dms ", target, lat)
 		}
 
@@ -236,56 +193,18 @@ func PrintJSONOutput(results []models.MultiEnvResult) {
 }
 
 func generateSummary(results []models.MultiEnvResult) models.Summary {
-	var totalRequests int
-	var succeeded int
-	var failed int
-	var latencies []int64
-	targetStats := make(map[string]*models.TargetStats)
+	agg := AggregateResults(results)
+	byTarget := map[string]models.TargetStats{}
 
-	if len(results) > 0 {
-		for target := range results[0].Responses {
-			targetStats[target] = &models.TargetStats{}
-		}
-	}
-
-	for _, result := range results {
-		for target, replay := range result.Responses {
-			totalRequests++
-
-			stats := targetStats[target]
-
-			if replay.Status != nil && *replay.Status < 400 {
-				succeeded++
-				stats.Succeeded++
-			} else {
-				failed++
-				stats.Failed++
-			}
-
-			latencies = append(latencies, replay.LatencyMs)
-		}
-	}
-
-	slices.Sort(latencies)
-
-	overallLatency := calculateLatencyStats(latencies)
-
-	for target, stats := range targetStats {
-		var targetLatencies []int64
-		for _, result := range results {
-			if replay, ok := result.Responses[target]; ok {
-				targetLatencies = append(targetLatencies, replay.LatencyMs)
-			}
-		}
-
-		stats.Latency = calculateLatencyStats(targetLatencies)
+	for k, v := range agg.TargetStats {
+		byTarget[k] = *v
 	}
 
 	return models.Summary{
-		TotalRequests: totalRequests,
-		Succeeded:     succeeded,
-		Failed:        failed,
-		Latency:       overallLatency,
-		ByTarget:      map[string]models.TargetStats{},
+		TotalRequests: agg.TotalRequests,
+		Succeeded:     agg.Succeeded,
+		Failed:        agg.Failed,
+		Latency:       stats.CalculateLatencyStats(agg.Latencies),
+		ByTarget:      byTarget,
 	}
 }

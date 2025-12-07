@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,16 +16,15 @@ import (
 
 func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 	semaphore := make(chan struct{}, args.Concurrency)
-	client := &http.Client{
-		Timeout: time.Duration(args.Timeout) * time.Millisecond,
-	}
+	client := &http.Client{Timeout: time.Duration(args.Timeout) * time.Millisecond}
 
-	results := make([]models.MultiEnvResult, 0, len(entries))
-
+	results := make([]models.MultiEnvResult, len(entries))
 	var rateLimiter <-chan time.Time
+
 	if args.RateLimit > 0 {
-		interval := time.Second / time.Duration(args.RateLimit)
-		rateLimiter = time.Tick(interval)
+		ticker := time.NewTicker(time.Second / time.Duration(args.RateLimit))
+		defer ticker.Stop()
+		rateLimiter = ticker.C
 	}
 
 	var pBar *progress.ProgressBar
@@ -45,18 +45,15 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 			wg.Add(1)
 			semaphore <- struct{}{}
 
-			go func(target string, idx int, e models.LogEntry) {
+			go func(target string) {
 				defer wg.Done()
-				defer func() {
-					<-semaphore
-				}()
+				defer func() { <-semaphore }()
 
-				result := replaySingle(idx, e, client, target)
-
+				r := replaySingle(i, entry, client, target, args)
 				mu.Lock()
-				responses[target] = result
+				responses[target] = r
 				mu.Unlock()
-			}(target, i, entry)
+			}(target)
 		}
 
 		wg.Wait()
@@ -71,12 +68,10 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 			result.Diff = compareResponses(responses)
 		}
 
-		results = append(results, result)
-
+		results[i] = result
 		if pBar != nil {
 			pBar.Increment()
 		}
-
 		if args.Delay > 0 {
 			time.Sleep(time.Duration(args.Delay) * time.Millisecond)
 		}
@@ -89,9 +84,25 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 	return results
 }
 
-func replaySingle(index int, entry models.LogEntry, client *http.Client, target string) models.ReplayResult {
-	url := fmt.Sprintf("http://%s%s", target, entry.Path)
+func replaySingle(index int, entry models.LogEntry, client *http.Client, target string, args *cli.CliArgs) models.ReplayResult {
+	req, err := buildRequest(entry, target, args)
+	if err != nil {
+		errStr := err.Error()
+		return models.ReplayResult{Index: index, Status: nil, LatencyMs: 0, Error: &errStr, Body: nil}
+	}
 
+	body, status, latency, err := doRequest(client, req)
+	if err != nil {
+		errStr := err.Error()
+		return models.ReplayResult{Index: index, Status: nil, LatencyMs: latency, Error: &errStr, Body: nil}
+	}
+
+	bodyStr := string(body)
+	return models.ReplayResult{Index: index, Status: &status, LatencyMs: latency, Body: &bodyStr}
+}
+
+func buildRequest(entry models.LogEntry, target string, args *cli.CliArgs) (*http.Request, error) {
+	url := fmt.Sprintf("http://%s%s", target, entry.Path)
 	var bodyReader io.Reader
 	if len(entry.Body) > 0 && string(entry.Body) != "null" {
 		bodyReader = bytes.NewReader(entry.Body)
@@ -99,62 +110,51 @@ func replaySingle(index int, entry models.LogEntry, client *http.Client, target 
 
 	req, err := http.NewRequest(entry.Method, url, bodyReader)
 	if err != nil {
-		errStr := err.Error()
-		return models.ReplayResult{
-			Index:     index,
-			Status:    nil,
-			LatencyMs: 0,
-			Error:     &errStr,
-			Body:      nil,
-		}
+		return nil, err
 	}
 
 	for k, v := range entry.Headers {
 		req.Header.Set(k, v)
 	}
 
-	if bodyReader != nil {
+	if args.AuthHeader != "" {
+		req.Header.Set("Authorization", args.AuthHeader)
+	}
+
+	for _, h := range args.Headers {
+		parts := strings.SplitN(h, ":", 2)
+		if len(parts) == 2 {
+			req.Header.Set(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]))
+		}
+	}
+
+	if bodyReader != nil && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	if req.Header.Get("User-Agent") == "" {
+		req.Header.Set("User-Agent", "go-http-replayer/1.0")
+	}
+
+	return req, nil
+}
+
+func doRequest(client *http.Client, req *http.Request) (body []byte, statusCode int, latencyMs int64, err error) {
 	start := time.Now()
 	resp, err := client.Do(req)
-	latencyMs := time.Since(start).Milliseconds()
+	latencyMs = time.Since(start).Milliseconds()
 
 	if err != nil {
-		errStr := err.Error()
-		return models.ReplayResult{
-			Index:     index,
-			Status:    nil,
-			LatencyMs: latencyMs,
-			Error:     &errStr,
-			Body:      nil,
-		}
+		return nil, 0, latencyMs, err
 	}
 	defer resp.Body.Close()
 
-	status := resp.StatusCode
-	bodyBytes, err := io.ReadAll(resp.Body)
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
-		errStr := err.Error()
-		return models.ReplayResult{
-			Index:     index,
-			Status:    nil,
-			LatencyMs: latencyMs,
-			Error:     &errStr,
-			Body:      nil,
-		}
+		return nil, resp.StatusCode, latencyMs, err
 	}
 
-	bodyStr := string(bodyBytes)
-
-	return models.ReplayResult{
-		Index:     index,
-		Status:    &status,
-		LatencyMs: latencyMs,
-		Error:     nil,
-		Body:      &bodyStr,
-	}
+	return body, resp.StatusCode, latencyMs, nil
 }
 
 func compareResponses(responses map[string]models.ReplayResult) *models.ResponseDiff {
@@ -171,33 +171,29 @@ func compareResponses(responses map[string]models.ReplayResult) *models.Response
 	var firstStatus *int
 	var firstBody *string
 
-	for target, result := range responses {
-		if result.Status != nil {
-			diff.StatusCodes[target] = *result.Status
-
+	for target, r := range responses {
+		if r.Status != nil {
+			diff.StatusCodes[target] = *r.Status
 			if firstStatus == nil {
-				firstStatus = result.Status
-			} else if *firstStatus != *result.Status {
+				firstStatus = r.Status
+			} else if *firstStatus != *r.Status {
 				diff.StatusMismatch = true
 			}
+
 		}
-
-		if result.Body != nil {
+		if r.Body != nil {
 			if firstBody == nil {
-				firstBody = result.Body
-			} else if *firstBody != *result.Body {
+				firstBody = r.Body
+			} else if *firstBody != *r.Body {
 				diff.BodyMismatch = true
-
-				bodyPreview := *result.Body
+				bodyPreview := *r.Body
 				if len(bodyPreview) > 100 {
 					bodyPreview = bodyPreview[:100] + "..."
 				}
-
 				diff.BodyDiffs[target] = bodyPreview
 			}
 		}
-
-		diff.LatencyDiff[target] = result.LatencyMs
+		diff.LatencyDiff[target] = r.LatencyMs
 	}
 
 	if !diff.StatusMismatch && !diff.BodyMismatch {

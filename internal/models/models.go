@@ -55,3 +55,11 @@ type TargetStats struct {
 	Failed    int          `json:"failed"`
 	Latency   LatencyStats `json:"latency"`
 }
+
+type AggregatedStats struct {
+	TotalRequests int
+	Succeeded     int
+	Failed        int
+	Latencies     []int64
+	TargetStats   map[string]*TargetStats
+}

@@ -1,6 +1,6 @@
 # HTTP Replay Tool
 
-An HTTP request replay and comparison tool written in Go. Perfect for testing API changes, comparing environments, load testing, and validating migrations
+An HTTP request replay and comparison tool written in Go. Perfect for testing API changes, comparing environments, load testing, validating migrations, and generating detailed reports
 
 ## Key Features
 
@@ -23,11 +23,21 @@ An HTTP request replay and comparison tool written in Go. Perfect for testing AP
 - **Latency comparison** across targets
 - **Per-target statistics** breakdown
 
+### Authentication & Headers
+
+- **Bearer token authentication**
+- **Custom API headers** (repeatable)
+- **Supports multiple headers simultaneously**
+
 ### Output Formats
 - **Colorized console output** for easy reading
 - **JSON output** for programmatic use and CI/CD
-- **Summary statistics** with percentile breakdowns
+- **HTML reports** with executive summary, latency charts, per-target breakdown, and difference highlighting
 - **Summary-only mode** for quick overview
+
+### Log Parsing
+- **Nginx log conversion** to JSON Lines format (combined/common)
+- Supports filtering and replay directly from raw logs
 
 ## 🚀 Quick Start
 
@@ -40,39 +50,22 @@ cd replayer
 
 # Build all components
 go build -o replayer .
-go build -o mock_server cmd/mock_server/mock_server.go
-go build -o mock_server_v2 cmd/mock_server/mock_server_v2.go
-go build -o generate_logs cmd/generate_logs/generate_logs.go
+go build -o mock-server cmd/mock-server/mock-server.go
+go build -o mock-server-v2 cmd/mock-server/mock-server-v2.go
+go build -o generate-logs cmd/generate-logs/generate-logs.go
+go build -o nginx-converter cmd/nginx-converter/nginx-converter.go
 ```
 
 ### 5-Minute Demo
 
 ```bash
-# 1. Start two mock servers (v1 and v2 with intentional differences)
-./mock_server --port 8080        # Terminal 1
-./mock_server_v2 --port 8081     # Terminal 2
-
-# 2. Generate test traffic
-./generate_logs --output test_logs.json --count 100
-
-# 3. Compare the servers and see the differences!
-./replayer --input-file test_logs.json --compare localhost:8080 localhost:8081
+make build
+make clean
+make install
+make demo
 ```
 
-You'll see output like:
-```
-[0][localhost:8080] 200 -> 5ms
-[0][localhost:8081] 200 -> 6ms
-  [DIFF] Request 0 - GET /users/42:
-    Response bodies differ:
-      localhost:8080: {"id":42,"name":"Liakos koulaxis"}
-      localhost:8081: {"id":42,"name":"Liakos Koulaxis Jr.","version":"v2"}
-
-[15][localhost:8080] 200 -> 3ms
-[15][localhost:8081] 404 -> 2ms
-  [DIFF] Request 15 - GET /users/678:
-    Status codes differ: localhost:8080=200 localhost:8081=404
-```
+Once it's finished, the report.html will open up on your browser
 
 ## Usage Guide
 
@@ -108,6 +101,38 @@ Simulate realistic load patterns:
   --concurrency 50 \
   --timeout 10000 \
   localhost:8080
+```
+
+### Authentication & Custom Headers
+
+Provide auth token or custom headers:
+
+```bash
+# Bearer token
+./replayer --input-file logs.json --auth "Bearer token123" api.example.com
+
+# Custom headers
+./replayer --input-file logs.json --header "X-API-Key: abc" --header "X-Env: staging" api.example.com
+```
+
+### HTML Report Generation
+
+```bash
+# Single target
+./replayer --input-file logs.json --html-report report.html localhost:8080
+
+# Comparison mode
+./replayer --input-file logs.json --compare --html-report comparison_report.html staging.api production.api
+```
+
+### Nginx Log Parsing
+
+```bash
+# Convert nginx logs to JSON Lines
+./replayer --input-file /var/log/nginx/access.log --parse-nginx traffic.json --nginx-format combined
+
+# Replay converted logs
+./replayer --input-file traffic.json --concurrency 10 staging.api.com
 ```
 
 ### Filter Specific Requests
@@ -165,6 +190,11 @@ Preview what will be replayed without sending requests:
 | `--progress` | bool | true | Show progress bar |
 | `--dry-run` | bool | false | Preview mode - don't send requests |
 | `--summary-only` | bool | false | Output summary only |
+| `--auth` | string | "" | Authorization header value |
+| `--header` | string | "" | Custom header (repeatable) |
+| `--html-report` | string | "" | Generate HTML report |
+| `--parse-nginx` | string | "" | Convert nginx log to JSON Lines |
+| `--nginx-format` | string | "combined" | Nginx format: combined/common |
 
 ## Log File Format
 
@@ -316,44 +346,25 @@ localhost:8081:
 }
 ```
 
-## Mock Servers
-
-The project includes two mock servers with intentional differences for testing the comparison feature
-
-### Server v1 (port 8080)
-
-```bash
-./mock_server --port 8080
-```
-
-**Endpoints:**
-- `GET /users/{id}` - Returns all users with name "Liakos koulaxis"
-- `POST /checkout` - Accepts unlimited items
-- `GET /status` - Returns `{"status": "ok"}`
-- `GET /slow` - 2 second delay
-
-### Server v2 (port 8081)
-
-```bash
-./mock_server_v2 --port 8081
-```
-
-**Endpoints (with differences):**
-- `GET /users/{id}` 
-  - Returns 404 for IDs > 500
-  - Even IDs get "Liakos Koulaxis Jr."
-  - Includes `version` field
-- `POST /checkout` - Rejects > 10 items, different message format
-- `GET /status` - Returns `{"status": "ok", "version": "v2"}`
-- `GET /slow` - 3 second delay, different response text
-
 ## Real-World Use Cases
 
-### 1. Environment Parity Testing
+### 1. Production to Staging Validation with Auth & HTML Report
+
 **Problem:** Is staging behaving exactly like production?
 
 ```bash
-./replayer --input-file prod_traffic.json --compare staging.api production.api
+# Parse logs
+./replayer --input-file prod_traffic.log --parse-nginx prod_traffic.json
+
+# Replay and compare with auth
+./replayer \
+  --input-file prod_traffic.json \
+  --auth "Bearer ${STAGING_TOKEN}" \
+  --compare \
+  --html-report staging_validation.html \
+  --rate-limit 100 \
+  staging.api.example.com \
+  production.api.example.com
 ```
 
 **What you get:** Instant visibility into any behavioral differences between environments
@@ -454,14 +465,44 @@ cat results.json | jq '.summary.by_target | to_entries[] | {target: .key, avg_la
 cat results.json | jq '[.results[] | {index, path: .request.path, max_latency: [.responses[].latency_ms] | max}] | sort_by(.max_latency) | reverse | .[0:10]'
 ```
 
+## Mock Servers
+
+The project includes two mock servers with intentional differences for testing the comparison feature
+
+### Server v1 (port 8080)
+
+```bash
+./mock_server --port 8080
+```
+
+**Endpoints:**
+- `GET /users/{id}` - Returns all users with name "Liakos koulaxis"
+- `POST /checkout` - Accepts unlimited items
+- `GET /status` - Returns `{"status": "ok"}`
+- `GET /slow` - 2 second delay
+
+### Server v2 (port 8081)
+
+```bash
+./mock_server_v2 --port 8081
+```
+
+**Endpoints (with differences):**
+- `GET /users/{id}` 
+  - Returns 404 for IDs > 500
+  - Even IDs get "Liakos Koulaxis Jr."
+  - Includes `version` field
+- `POST /checkout` - Rejects > 10 items, different message format
+- `GET /status` - Returns `{"status": "ok", "version": "v2"}`
+- `GET /slow` - 3 second delay, different response text
+
+
 ## Future Enhancements
 
 Want to contribute? Here are some ideas:
 
-- [ ] HTML report generation with charts
 - [ ] Prometheus metrics export
 - [ ] Request recording from live traffic (reverse proxy mode)
-- [ ] Integration with common log formats (nginx, HAProxy)
 
 ## License
 
@@ -469,7 +510,7 @@ MIT
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to submit a Pull Request
 
 ## Show Your Support
 

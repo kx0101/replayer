@@ -21,6 +21,11 @@ type CliArgs struct {
 	Compare      bool
 	RateLimit    int
 	ProgressBar  bool
+	AuthHeader   string
+	Headers      []string
+	HTMLReport   string
+	ParseNginx   string
+	NginxFormat  string
 }
 
 func ParseArgs() *CliArgs {
@@ -40,9 +45,30 @@ func ParseArgs() *CliArgs {
 	flag.IntVar(&args.RateLimit, "rate-limit", 0, "Maximum requests per second (0 = unlimited)")
 	flag.BoolVar(&args.ProgressBar, "progress", true, "Show progress bar")
 
+	flag.StringVar(&args.AuthHeader, "auth", "", "Authorization header value (e.g., 'Bearer token123')")
+
+	var headerFlags stringSlice
+	flag.Var(&headerFlags, "header", "Custom header in format 'Key: Value' (can be used multiple times)")
+
+	flag.StringVar(&args.HTMLReport, "html-report", "", "Generate HTML report at specified path")
+
+	flag.StringVar(&args.ParseNginx, "parse-nginx", "", "Convert nginx log to json format (output path)")
+	flag.StringVar(&args.NginxFormat, "nginx-format", "combined", "Nginx log format (combined or common)")
+
 	flag.Parse()
 
+	args.Headers = headerFlags
 	args.Targets = flag.Args()
+
+	if args.ParseNginx != "" {
+		if args.InputFile == "" {
+			fmt.Fprintln(os.Stderr, "Error: --input-file is required")
+			flag.Usage()
+			os.Exit(1)
+		}
+
+		return args
+	}
 
 	if args.InputFile == "" {
 		fmt.Fprintln(os.Stderr, "Error: --input-file is required")
@@ -57,4 +83,15 @@ func ParseArgs() *CliArgs {
 	}
 
 	return args
+}
+
+type stringSlice []string
+
+func (s *stringSlice) String() string {
+	return fmt.Sprintf("%v", *s)
+}
+
+func (s *stringSlice) Set(value string) error {
+	*s = append(*s, value)
+	return nil
 }
