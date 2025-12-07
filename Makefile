@@ -12,6 +12,11 @@ build:
 release:
 	@echo "Building optimized binaries..."
 	@go build -ldflags="-s -w" -o replayer .
+	GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o replayer-linux .
+	GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o replayer-macos-intel .
+	GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o replayer-macos-arm .
+	GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o replayer.exe .
+
 	@echo "Release build complete!"
 
 clean:

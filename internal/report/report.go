@@ -295,7 +295,7 @@ const htmlTemplate = `<!DOCTYPE html>
         
         .diff-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); /* Force wider columns for diffs */
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
             gap: 1rem;
             margin-top: 0.5rem;
         }
