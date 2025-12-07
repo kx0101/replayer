@@ -26,6 +26,11 @@ type CliArgs struct {
 	HTMLReport   string
 	ParseNginx   string
 	NginxFormat  string
+
+	IgnoreVolatile    bool
+	IgnoreFields      []string
+	IgnorePatterns    []string
+	ShowVolatileDiffs bool
 }
 
 func ParseArgs() *CliArgs {
@@ -55,9 +60,19 @@ func ParseArgs() *CliArgs {
 	flag.StringVar(&args.ParseNginx, "parse-nginx", "", "Convert nginx log to json format (output path)")
 	flag.StringVar(&args.NginxFormat, "nginx-format", "combined", "Nginx log format (combined or common)")
 
+	flag.BoolVar(&args.IgnoreVolatile, "ignore-volatile", true, "Ignore common volatile fields (timestamps, IDs)")
+	flag.BoolVar(&args.ShowVolatileDiffs, "show-volatile-diffs", false, "Show diffs even if only volatile fields differ")
+
+	var ignoreFieldsFlag stringSlice
+	var ignorePatternsFlag stringSlice
+	flag.Var(&ignoreFieldsFlag, "ignore-field", "JSON field to ignore in comparison (can be repeated)")
+	flag.Var(&ignorePatternsFlag, "ignore-pattern", "Regex pattern for fields to ignore (can be repeated)")
+
 	flag.Parse()
 
 	args.Headers = headerFlags
+	args.IgnoreFields = ignoreFieldsFlag
+	args.IgnorePatterns = ignorePatternsFlag
 	args.Targets = flag.Args()
 
 	if args.ParseNginx != "" {

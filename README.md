@@ -9,6 +9,7 @@ An HTTP request replay and comparison tool written in Go. Perfect for testing AP
 - **Multi-target support** - test multiple environments simultaneously
 - **Concurrent execution** with configurable limits
 - **Smart filtering** by method, path, and limits
+- **Ignore rules** for skipping noisy or irrelevant fields during diffing
 
 ### Performance & Load Testing
 - **Rate limiting** - control requests per second
@@ -22,6 +23,7 @@ An HTTP request replay and comparison tool written in Go. Perfect for testing AP
 - **Response body comparison**
 - **Latency comparison** across targets
 - **Per-target statistics** breakdown
+- **Ignore fields** during comparison
 
 ### Authentication & Headers
 
@@ -149,6 +151,30 @@ Test only certain endpoints:
   localhost:8080
 ```
 
+### Ignore Rules
+
+Ignore specific JSON fields when comparing responses
+
+| Type | Example |
+|------|------|
+| Exact field | `--ignore status.updated_at` |
+| Wildcard | `--ignore '*.timestamp'` |
+| Multiple fields | `--ignore x --ignore y --ignore z`|
+
+```bash
+# Ignore timestamps, request IDs, metadata
+./replayer \
+  --input-file logs.json \
+  --compare \
+  --ignore "*.timestamp" \
+  --ignore "request_id" \
+  --ignore "metadata.*" \
+  staging.api prod.api
+
+# Ignore an entire object subtree
+--ignore "debug_info"
+```
+
 ### JSON Output for Automation
 
 Perfect for CI/CD pipelines:
@@ -195,6 +221,7 @@ Preview what will be replayed without sending requests:
 | `--html-report` | string | "" | Generate HTML report |
 | `--parse-nginx` | string | "" | Convert nginx log to JSON Lines |
 | `--nginx-format` | string | "combined" | Nginx format: combined/common |
+| `--ignore` | string | "" | Ignore fields during diff (repeatable) |
 
 ## Log File Format
 
@@ -464,45 +491,6 @@ cat results.json | jq '.summary.by_target | to_entries[] | {target: .key, avg_la
 # Find slowest requests
 cat results.json | jq '[.results[] | {index, path: .request.path, max_latency: [.responses[].latency_ms] | max}] | sort_by(.max_latency) | reverse | .[0:10]'
 ```
-
-## Mock Servers
-
-The project includes two mock servers with intentional differences for testing the comparison feature
-
-### Server v1 (port 8080)
-
-```bash
-./mock_server --port 8080
-```
-
-**Endpoints:**
-- `GET /users/{id}` - Returns all users with name "Liakos koulaxis"
-- `POST /checkout` - Accepts unlimited items
-- `GET /status` - Returns `{"status": "ok"}`
-- `GET /slow` - 2 second delay
-
-### Server v2 (port 8081)
-
-```bash
-./mock_server_v2 --port 8081
-```
-
-**Endpoints (with differences):**
-- `GET /users/{id}` 
-  - Returns 404 for IDs > 500
-  - Even IDs get "Liakos Koulaxis Jr."
-  - Includes `version` field
-- `POST /checkout` - Rejects > 10 items, different message format
-- `GET /status` - Returns `{"status": "ok", "version": "v2"}`
-- `GET /slow` - 3 second delay, different response text
-
-
-## Future Enhancements
-
-Want to contribute? Here are some ideas:
-
-- [ ] Prometheus metrics export
-- [ ] Request recording from live traffic (reverse proxy mode)
 
 ## License
 

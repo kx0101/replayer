@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/kx0101/replayer/internal/cli"
+	"github.com/kx0101/replayer/internal/comparison"
 	"github.com/kx0101/replayer/internal/models"
 	"github.com/kx0101/replayer/internal/progress"
 )
@@ -20,7 +21,6 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 
 	results := make([]models.MultiEnvResult, len(entries))
 	var rateLimiter <-chan time.Time
-
 	if args.RateLimit > 0 {
 		ticker := time.NewTicker(time.Second / time.Duration(args.RateLimit))
 		defer ticker.Stop()
@@ -32,15 +32,23 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 		pBar = progress.NewProgressBar(len(entries))
 	}
 
+	var volatileConfig *comparison.VolatileConfig
+	if args.IgnoreVolatile {
+		volatileConfig = comparison.ConfigFromFlags(args.IgnoreFields, args.IgnorePatterns)
+	}
+
 	for i, entry := range entries {
 		if rateLimiter != nil {
 			<-rateLimiter
 		}
 
 		responses := make(map[string]models.ReplayResult)
-		var wg sync.WaitGroup
-		var mu sync.Mutex
+		resCh := make(chan struct {
+			target string
+			res    models.ReplayResult
+		}, len(args.Targets))
 
+		var wg sync.WaitGroup
 		for _, target := range args.Targets {
 			wg.Add(1)
 			semaphore <- struct{}{}
@@ -49,14 +57,18 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 				defer wg.Done()
 				defer func() { <-semaphore }()
 
-				r := replaySingle(i, entry, client, target, args)
-				mu.Lock()
-				responses[target] = r
-				mu.Unlock()
+				resCh <- struct {
+					target string
+					res    models.ReplayResult
+				}{target, replaySingle(i, entry, client, target, args)}
 			}(target)
 		}
 
 		wg.Wait()
+		close(resCh)
+		for r := range resCh {
+			responses[r.target] = r.res
+		}
 
 		result := models.MultiEnvResult{
 			Index:     i,
@@ -65,13 +77,15 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 		}
 
 		if args.Compare && len(args.Targets) > 1 {
-			result.Diff = compareResponses(responses)
+			result.Diff = compareResponses(responses, volatileConfig, args.ShowVolatileDiffs)
 		}
 
 		results[i] = result
+
 		if pBar != nil {
 			pBar.Increment()
 		}
+
 		if args.Delay > 0 {
 			time.Sleep(time.Duration(args.Delay) * time.Millisecond)
 		}
@@ -87,14 +101,12 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 func replaySingle(index int, entry models.LogEntry, client *http.Client, target string, args *cli.CliArgs) models.ReplayResult {
 	req, err := buildRequest(entry, target, args)
 	if err != nil {
-		errStr := err.Error()
-		return models.ReplayResult{Index: index, Status: nil, LatencyMs: 0, Error: &errStr, Body: nil}
+		return wrapError(index, err, 0)
 	}
 
 	body, status, latency, err := doRequest(client, req)
 	if err != nil {
-		errStr := err.Error()
-		return models.ReplayResult{Index: index, Status: nil, LatencyMs: latency, Error: &errStr, Body: nil}
+		return wrapError(index, err, latency)
 	}
 
 	bodyStr := string(body)
@@ -157,7 +169,24 @@ func doRequest(client *http.Client, req *http.Request) (body []byte, statusCode 
 	return body, resp.StatusCode, latencyMs, nil
 }
 
-func compareResponses(responses map[string]models.ReplayResult) *models.ResponseDiff {
+func wrapError(index int, err error, latency int64) models.ReplayResult {
+	if err == nil {
+		return models.ReplayResult{}
+	}
+
+	s := err.Error()
+	return models.ReplayResult{Index: index, LatencyMs: latency, Error: &s}
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+
+	return s[:max] + "..."
+}
+
+func compareResponses(responses map[string]models.ReplayResult, volatileConfig *comparison.VolatileConfig, showVolatileDiffs bool) *models.ResponseDiff {
 	if len(responses) < 2 {
 		return nil
 	}
@@ -168,35 +197,74 @@ func compareResponses(responses map[string]models.ReplayResult) *models.Response
 		LatencyDiff: make(map[string]int64),
 	}
 
+	var firstTarget string
 	var firstStatus *int
-	var firstBody *string
+	var firstBody string
+	bodies := make(map[string]string)
 
 	for target, r := range responses {
 		if r.Status != nil {
 			diff.StatusCodes[target] = *r.Status
 			if firstStatus == nil {
 				firstStatus = r.Status
+				firstTarget = target
 			} else if *firstStatus != *r.Status {
 				diff.StatusMismatch = true
 			}
-
 		}
+
 		if r.Body != nil {
-			if firstBody == nil {
-				firstBody = r.Body
-			} else if *firstBody != *r.Body {
-				diff.BodyMismatch = true
-				bodyPreview := *r.Body
-				if len(bodyPreview) > 100 {
-					bodyPreview = bodyPreview[:100] + "..."
-				}
-				diff.BodyDiffs[target] = bodyPreview
+			bodies[target] = *r.Body
+			if firstBody == "" {
+				firstBody = *r.Body
 			}
 		}
+
 		diff.LatencyDiff[target] = r.LatencyMs
 	}
 
-	if !diff.StatusMismatch && !diff.BodyMismatch {
+	volatileOnly := true
+	for target, body := range bodies {
+		if target == firstTarget {
+			continue
+		}
+
+		if volatileConfig != nil {
+			detailedDiff, err := comparison.DetailedCompare(firstBody, body, volatileConfig)
+			if err != nil {
+				if firstBody != body {
+					diff.BodyMismatch = true
+					volatileOnly = false
+					diff.BodyDiffs[target] = truncate(body, 200)
+				}
+				continue
+			}
+
+			if detailedDiff.StableFieldsDiff {
+				diff.BodyMismatch = true
+				volatileOnly = false
+				diff.BodyDiffs[target] = truncate(body, 200)
+				diff.IgnoredFields = detailedDiff.IgnoredFields
+			} else if detailedDiff.VolatileOnly {
+				diff.BodyMismatch = true
+				diff.BodyDiffs[target] = "<volatile-only>"
+				diff.IgnoredFields = detailedDiff.IgnoredFields
+			}
+
+		} else if firstBody != body {
+			diff.BodyMismatch = true
+			volatileOnly = false
+			diff.BodyDiffs[target] = truncate(body, 200)
+		}
+	}
+
+	if diff.BodyMismatch && firstTarget != "" {
+		diff.BodyDiffs[firstTarget] = truncate(firstBody, 200)
+	}
+
+	diff.VolatileOnly = volatileOnly && diff.BodyMismatch
+
+	if (!diff.StatusMismatch && !diff.BodyMismatch) || (diff.VolatileOnly && !showVolatileDiffs) {
 		return nil
 	}
 

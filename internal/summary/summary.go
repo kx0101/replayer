@@ -152,7 +152,12 @@ func printDiff(result models.MultiEnvResult) {
 		return
 	}
 
-	fmt.Printf("%s  [DIFF] Request %d:%s\n", ColorYellow, result.Index, ColorReset)
+	diffType := ""
+	if diff.VolatileOnly {
+		diffType = " (volatile fields only)"
+	}
+
+	fmt.Printf("%s  [DIFF] Request %d%s:%s\n", ColorYellow, result.Index, diffType, ColorReset)
 	if diff.StatusMismatch {
 		fmt.Printf("    Status codes differ: ")
 		for target, status := range diff.StatusCodes {
@@ -166,6 +171,15 @@ func printDiff(result models.MultiEnvResult) {
 		fmt.Printf("    Response bodies differ\n")
 		for target, body := range diff.BodyDiffs {
 			fmt.Printf("      %s: %s\n", target, body)
+		}
+	}
+
+	if len(diff.IgnoredFields) > 0 {
+		fmt.Printf("    %sIgnored fields:%s ", ColorCyan, ColorReset)
+		if len(diff.IgnoredFields) <= 5 {
+			fmt.Printf("%v\n", diff.IgnoredFields)
+		} else {
+			fmt.Printf("%v and %d more...\n", diff.IgnoredFields[:5], len(diff.IgnoredFields)-5)
 		}
 	}
 

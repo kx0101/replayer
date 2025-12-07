@@ -30,6 +30,8 @@ type ResponseDiff struct {
 	BodyMismatch   bool              `json:"body_mismatch"`
 	BodyDiffs      map[string]string `json:"body_diffs,omitempty"`
 	LatencyDiff    map[string]int64  `json:"latency_diff,omitempty"`
+	VolatileOnly   bool              `json:"volatile_only"`
+	IgnoredFields  []string          `json:"ignored_fields,omitempty"`
 }
 
 type Summary struct {

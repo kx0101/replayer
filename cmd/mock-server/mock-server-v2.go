@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type CheckoutRequest struct {
@@ -17,19 +19,30 @@ type CheckoutRequest struct {
 }
 
 type CheckoutResponse struct {
-	Success bool   `json:"success"`
-	Message string `json:"message"`
+	OrderID   string    `json:"order_id"`
+	Success   bool      `json:"success"`
+	Message   string    `json:"message"`
+	Total     float64   `json:"total"`
+	Tax       float64   `json:"tax"`
+	CreatedAt time.Time `json:"created_at"`
+	RequestID string    `json:"request_id"`
 }
 
 type StatusResponse struct {
-	Status  string `json:"status"`
-	Version string `json:"version"`
+	Status    string    `json:"status"`
+	Version   string    `json:"version"`
+	Timestamp time.Time `json:"timestamp"`
+	RequestID string    `json:"request_id"`
 }
 
 type UserResponse struct {
-	ID      uint64 `json:"id"`
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	ID        uint64    `json:"id"`
+	Name      string    `json:"name"`
+	Email     string    `json:"email"`
+	Version   string    `json:"version"`
+	LastLogin time.Time `json:"last_login"`
+	SessionID string    `json:"session_id"`
+	RequestID string    `json:"request_id"`
 }
 
 func main() {
@@ -38,7 +51,6 @@ func main() {
 	flag.Parse()
 
 	mux := http.NewServeMux()
-
 	handlers := &Handlers{version: *version}
 
 	mux.HandleFunc("/users/", handlers.getUserHandler)
@@ -47,7 +59,7 @@ func main() {
 	mux.HandleFunc("/status", handlers.statusHandler)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
-	fmt.Printf("Server v1 running on http://%s/\n", addr)
+	fmt.Printf("Server v2 running on http://%s/\n", addr)
 
 	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
@@ -82,9 +94,13 @@ func (h *Handlers) getUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := UserResponse{
-		ID:      id,
-		Name:    name,
-		Version: h.version,
+		ID:        id,
+		Name:      name,
+		Email:     fmt.Sprintf("user%d@example.com", id),
+		Version:   h.version,
+		LastLogin: time.Now(),
+		SessionID: uuid.New().String(),
+		RequestID: uuid.New().String(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -106,16 +122,26 @@ func (h *Handlers) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 	if len(req.Items) > 10 {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(CheckoutResponse{
-			Success: false,
-			Message: "Too many items, maximum is 10",
+			Success:   false,
+			Message:   "Too many items, maximum is 10",
+			CreatedAt: time.Now(),
+			RequestID: uuid.New().String(),
 		})
 		return
 	}
 
+	itemCount := len(req.Items)
+	total := float64(itemCount) * 29.99
+	tax := total * 0.10
+
 	response := CheckoutResponse{
-		Success: true,
-		Message: fmt.Sprintf("Order confirmed for user %d | %d items | Tax calculated",
-			req.UserID, len(req.Items)),
+		OrderID:   fmt.Sprintf("ORD-%s", uuid.New().String()[:8]),
+		Success:   true,
+		Message:   fmt.Sprintf("Order confirmed for user %d | %d items | Tax calculated", req.UserID, itemCount), // DIFFERENT format
+		Total:     total,
+		Tax:       tax,
+		CreatedAt: time.Now(),
+		RequestID: uuid.New().String(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -129,8 +155,10 @@ func (h *Handlers) statusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := StatusResponse{
-		Status:  "ok",
-		Version: h.version,
+		Status:    "ok",
+		Version:   h.version,
+		Timestamp: time.Now(),
+		RequestID: uuid.New().String(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -144,5 +172,15 @@ func (h *Handlers) slowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	time.Sleep(3 * time.Second)
-	w.Write([]byte("done - v2 optimized"))
+
+	response := map[string]any{
+		"status":     "completed",
+		"message":    "done - v2 optimized",
+		"duration":   3000,
+		"timestamp":  time.Now(),
+		"request_id": uuid.New().String(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
