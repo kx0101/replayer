@@ -2,22 +2,22 @@
 
 An HTTP request replay and comparison tool written in Go. Perfect for testing API changes, comparing environments, load testing, validating migrations, and generating detailed reports
 
-## Key Features
+## Features
 
-### Core Functionality
+### Core
 - **Replay HTTP requests** from JSON log files
 - **Multi-target support** - test multiple environments simultaneously
 - **Concurrent execution** with configurable limits
 - **Smart filtering** by method, path, and limits
 - **Ignore rules** for skipping noisy or irrelevant fields during diffing
 
-### Performance & Load Testing
+### Performance & Load
 - **Rate limiting** - control requests per second
 - **Configurable timeouts** and delays
 - **Real-time progress tracking** with ETA
 - **Detailed latency statistics** (p50, p90, p95, p99, min, max, avg)
 
-### Response Comparison & Analysis
+### Response Comparison
 - **Automatic diff detection** between targets
 - **Status code mismatch** reporting
 - **Response body comparison**
@@ -31,13 +31,13 @@ An HTTP request replay and comparison tool written in Go. Perfect for testing AP
 - **Custom API headers** (repeatable)
 - **Supports multiple headers simultaneously**
 
-### Output Formats
+### Output
 - **Colorized console output** for easy reading
 - **JSON output** for programmatic use and CI/CD
 - **HTML reports** with executive summary, latency charts, per-target breakdown, and difference highlighting
 - **Summary-only mode** for quick overview
 
-### Log Parsing
+### Logs
 - **Nginx log conversion** to JSON Lines format (combined/common)
 - Supports filtering and replay directly from raw logs
 
