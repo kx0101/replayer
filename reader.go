@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,23 +44,24 @@ func DryRun(input string) error {
 }
 
 func parseEntries(r io.Reader, limit int, dryRun bool) ([]LogEntry, error) {
-	scanner := bufio.NewScanner(r)
+	decoder := json.NewDecoder(r)
 	var entries []LogEntry
 	lineNum := 0
 
-	for scanner.Scan() {
+	for limit <= 0 || len(entries) < limit {
+
+		var entry LogEntry
+		if err := decoder.Decode(&entry); err != nil {
+			if err == io.EOF {
+				break
+			}
+
+			lineNum++
+			fmt.Fprintf(os.Stderr, "invalid JSON object %d: %v\n", lineNum, err)
+			continue
+		}
+
 		lineNum++
-		line := strings.TrimSpace(scanner.Text())
-
-		if line == "" {
-			continue
-		}
-
-		entry, err := parseLine(line, lineNum)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "%v\n", err)
-			continue
-		}
 
 		if dryRun {
 			fmt.Printf("[DRY RUN] - %d: %+v\n", lineNum, entry)
@@ -69,24 +69,7 @@ func parseEntries(r io.Reader, limit int, dryRun bool) ([]LogEntry, error) {
 		}
 
 		entries = append(entries, entry)
-
-		if limit > 0 && len(entries) >= limit {
-			break
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading file: %w", err)
 	}
 
 	return entries, nil
-}
-
-func parseLine(line string, lineNum int) (LogEntry, error) {
-	var entry LogEntry
-	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		return LogEntry{}, fmt.Errorf("invalid line %d: %w", lineNum, err)
-	}
-
-	return entry, nil
 }

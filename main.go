@@ -28,6 +28,23 @@ func main() {
 		return
 	}
 
+	if args.CaptureMode {
+		fmt.Printf("Starting reverse proxy on %s, forwarding to %s...\n", args.ListenAddr, args.Upstream)
+		config := &CaptureConfig{
+			ListenAddr: args.ListenAddr,
+			Upstream:   args.Upstream,
+			OutputFile: args.CaptureOut,
+			Stream:     args.CaptureStream,
+		}
+
+		if err := StartReverseProxy(config); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to start reverse proxy: %v\n", err)
+			os.Exit(1)
+		}
+
+		return
+	}
+
 	entries, err := ReadEntries(args)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to read input file: %v\n", err)

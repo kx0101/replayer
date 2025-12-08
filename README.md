@@ -51,22 +51,12 @@ git clone <repo-url>
 cd replayer
 
 # Build all components
-go build -o replayer .
-go build -o mock-server cmd/mock-server/mock-server.go
-go build -o mock-server-v2 cmd/mock-server-v2/mock-server-v2.go
-go build -o generate-logs cmd/generate-logs/generate-logs.go
-```
-
-### 5-Minute Demo
-
-```bash
 make build
-make clean
-make install
+
 make demo
 ```
 
-Once it's finished, the report.html will open up on your browser
+Once it's finished, the demo.html will open up on your browser
 
 ## Usage Guide
 
@@ -190,6 +180,21 @@ Perfect for CI/CD pipelines:
 cat results.json | jq '.summary.succeeded'
 ```
 
+### Live Capture Mode
+
+Capture requests in real-time from a running service or proxy and replay/compare them on the fly
+
+```bash
+# Capture live traffic on port 8080, forward to upstream service, save to file, and stream to stdout
+./replayer --capture \
+  --listen :8080 \
+  --upstream http://localhost:8082 \
+  --output traffic.json \
+  --stream
+```
+
+When you finish capturing you may use the generated `traffic.json` file to replay or compare as usual
+
 ### Dry Run Mode
 
 Preview what will be replayed without sending requests:
@@ -221,14 +226,19 @@ Preview what will be replayed without sending requests:
 | `--parse-nginx` | string | "" | Convert nginx log to JSON Lines |
 | `--nginx-format` | string | "combined" | Nginx format: combined/common |
 | `--ignore` | string | "" | Ignore fields during diff (repeatable) |
+| `--capture` | | | Enable live capture mode |
+| `--listen` | string | "" | Port to listen for incoming requests |
+| `--upstream` | string | "" | URL of the real service to forward requests to |
+| `--output` | string | "" | Path to save captured requests in JSON format |
+| `--stream` | | | Optionally stream captured requests to stdout as they happen |
 
 ## Log File Format
 
 The tool expects **JSON Lines** format (one JSON object per line):
 
 ```json
-{"method":"GET","path":"/users/123","headers":{"Content-Type":"application/json"},"body":null}
-{"method":"POST","path":"/checkout","headers":{"Content-Type":"application/json"},"body":{"user_id":42,"items":[1,2,3]}}
+{"method":"GET","path":"/users/123","headers":{"Content-Type":["application/json"]},"body":null}
+{"method":"POST","path":"/checkout","headers":{"Content-Type":["application/json"]},"body":{"user_id":42,"items":[1,2,3]}}
 {"method":"GET","path":"/status","headers":{},"body":null}
 ```
 

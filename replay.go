@@ -120,8 +120,10 @@ func buildRequest(entry LogEntry, target string, args *CliArgs) (*http.Request, 
 		return nil, err
 	}
 
-	for k, v := range entry.Headers {
-		req.Header.Set(k, v)
+	for k, values := range entry.Headers {
+		for _, v := range values {
+			req.Header.Add(k, v)
+		}
 	}
 
 	if args.AuthHeader != "" {

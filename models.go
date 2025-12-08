@@ -1,12 +1,19 @@
 package main
 
-import "encoding/json"
+import (
+	"time"
+)
 
 type LogEntry struct {
-	Method  string            `json:"method"`
-	Path    string            `json:"path"`
-	Headers map[string]string `json:"headers"`
-	Body    json.RawMessage   `json:"body"`
+	Method          string              `json:"method"`
+	Path            string              `json:"path"`
+	Headers         map[string][]string `json:"headers"`
+	Body            []byte              `json:"body"`
+	Status          int                 `json:"status"`
+	ResponseHeaders map[string][]string `json:"response_headers"`
+	ResponseBody    []byte              `json:"response_body"`
+	Timestamp       time.Time           `json:"timestamp"`
+	LatencyMs       int64               `json:"latency_ms"`
 }
 
 type ReplayResult struct {

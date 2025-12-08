@@ -31,6 +31,12 @@ type CliArgs struct {
 	IgnoreFields      []string
 	IgnorePatterns    []string
 	ShowVolatileDiffs bool
+
+	ListenAddr    string
+	Upstream      string
+	CaptureOut    string
+	CaptureMode   bool
+	CaptureStream bool
 }
 
 func ParseArgs() *CliArgs {
@@ -68,6 +74,12 @@ func ParseArgs() *CliArgs {
 	flag.Var(&ignoreFieldsFlag, "ignore-field", "JSON field to ignore in comparison (can be repeated)")
 	flag.Var(&ignorePatternsFlag, "ignore-pattern", "Regex pattern for fields to ignore (can be repeated)")
 
+	flag.BoolVar(&args.CaptureMode, "capture", false, "Enable reverse proxy capture mode")
+	flag.StringVar(&args.ListenAddr, "listen", ":8080", "Reverse proxy listen address")
+	flag.StringVar(&args.Upstream, "upstream", "", "Upstream server to proxy to (e.g. production.api.com)")
+	flag.StringVar(&args.CaptureOut, "output", "captured.json", "Output JSON file path")
+	flag.BoolVar(&args.CaptureStream, "stream", false, "Also stream capture records to stdout")
+
 	flag.Parse()
 
 	args.Headers = headerFlags
@@ -78,6 +90,16 @@ func ParseArgs() *CliArgs {
 	if args.ParseNginx != "" {
 		if args.InputFile == "" {
 			fmt.Fprintln(os.Stderr, "Error: --input-file is required")
+			flag.Usage()
+			os.Exit(1)
+		}
+
+		return args
+	}
+
+	if args.CaptureMode {
+		if args.Upstream == "" {
+			fmt.Fprintln(os.Stderr, "Error: --upstream is required in capture mode")
 			flag.Usage()
 			os.Exit(1)
 		}

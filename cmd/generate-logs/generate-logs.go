@@ -18,11 +18,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to create file: %v\n", err)
 		os.Exit(1)
 	}
+
 	defer func() {
-		err := file.Close()
+		err = file.Close()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to close file: %v\n", err)
-			os.Exit(1)
 		}
 	}()
 
@@ -54,8 +54,29 @@ func main() {
 			}
 		}
 
-		data, _ := json.Marshal(entry)
-		_, err := file.Write(data)
+		if entry["body"] != nil {
+			bodyBytes, err := json.Marshal(entry["body"])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to marshal body: %v\n", err)
+				os.Exit(1)
+			}
+			entry["body"] = bodyBytes
+		}
+
+		headers := entry["headers"].(map[string]string)
+		newHeaders := make(map[string][]string, len(headers))
+		for k, v := range headers {
+			newHeaders[k] = []string{v}
+		}
+		entry["headers"] = newHeaders
+
+		data, err := json.Marshal(entry)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to marshal entry: %v\n", err)
+			os.Exit(1)
+		}
+
+		_, err = file.Write(data)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to write to file: %v\n", err)
 			os.Exit(1)
@@ -63,7 +84,7 @@ func main() {
 
 		_, err = file.Write([]byte("\n"))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write to file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Failed to write newline to file: %v\n", err)
 			os.Exit(1)
 		}
 	}

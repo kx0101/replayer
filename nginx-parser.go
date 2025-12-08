@@ -135,15 +135,15 @@ func (p *NginxParser) parseLine(line string) (*LogEntry, error) {
 	method := matches[3]
 	path := matches[4]
 
-	headers := make(map[string]string)
+	headers := make(map[string][]string)
 
 	if len(matches) > 8 {
 		if matches[8] != "-" {
-			headers["User-Agent"] = matches[8]
+			headers["User-Agent"] = []string{matches[8]}
 		}
 
 		if matches[7] != "-" && matches[7] == "" {
-			headers["Referrer"] = matches[7]
+			headers["Referrer"] = []string{matches[7]}
 		}
 	}
 
@@ -151,10 +151,10 @@ func (p *NginxParser) parseLine(line string) (*LogEntry, error) {
 	cleanPath := pathParts[0]
 
 	entry := &LogEntry{
-		Method:  strings.ToUpper(method),
-		Path:    cleanPath,
+		Method: strings.ToUpper(method),
+		Path:   cleanPath,
 		Headers: headers,
-		Body:    nil,
+		Body:   nil,
 	}
 
 	return entry, nil
