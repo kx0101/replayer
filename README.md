@@ -53,9 +53,8 @@ cd replayer
 # Build all components
 go build -o replayer .
 go build -o mock-server cmd/mock-server/mock-server.go
-go build -o mock-server-v2 cmd/mock-server/mock-server-v2.go
+go build -o mock-server-v2 cmd/mock-server-v2/mock-server-v2.go
 go build -o generate-logs cmd/generate-logs/generate-logs.go
-go build -o nginx-converter cmd/nginx-converter/nginx-converter.go
 ```
 
 ### 5-Minute Demo
