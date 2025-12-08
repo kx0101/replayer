@@ -1,13 +1,10 @@
-package summary
+package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"os"
 	"slices"
-
-	"github.com/kx0101/replayer/internal/models"
-	"github.com/kx0101/replayer/internal/stats"
 )
 
 const (
@@ -19,7 +16,7 @@ const (
 	ColorBold   = "\033[1m"
 )
 
-func PrintSummary(results []models.MultiEnvResult, compare bool) {
+func PrintSummary(results []MultiEnvResult, compare bool) {
 	fmt.Println(ColorBold + "==== Summary ====" + ColorReset)
 
 	agg := AggregateResults(results)
@@ -36,11 +33,11 @@ func PrintSummary(results []models.MultiEnvResult, compare bool) {
 	printResults(results, diffCount, compare, agg)
 }
 
-func AggregateResults(results []models.MultiEnvResult) models.AggregatedStats {
-	targetStats := map[string]*models.TargetStats{}
+func AggregateResults(results []MultiEnvResult) AggregatedStats {
+	targetStats := map[string]*TargetStats{}
 	if len(results) > 0 {
 		for target := range results[0].Responses {
-			targetStats[target] = &models.TargetStats{}
+			targetStats[target] = &TargetStats{}
 		}
 	}
 
@@ -72,10 +69,10 @@ func AggregateResults(results []models.MultiEnvResult) models.AggregatedStats {
 			}
 		}
 
-		ts.Latency = stats.CalculateLatencyStats(targetLat)
+		ts.Latency = CalculateLatencyStats(targetLat)
 	}
 
-	return models.AggregatedStats{
+	return AggregatedStats{
 		TotalRequests: totalRequests,
 		Succeeded:     succeeded,
 		Failed:        failed,
@@ -84,9 +81,9 @@ func AggregateResults(results []models.MultiEnvResult) models.AggregatedStats {
 	}
 }
 
-func printResults(results []models.MultiEnvResult, diffCount int, compare bool, agg models.AggregatedStats) {
+func printResults(results []MultiEnvResult, diffCount int, compare bool, agg AggregatedStats) {
 	slices.Sort(agg.Latencies)
-	overallLatency := stats.CalculateLatencyStats(agg.Latencies)
+	overallLatency := CalculateLatencyStats(agg.Latencies)
 
 	fmt.Printf("Total Requests: %d\nSucceeded: %s%d%s\nFailed: %s%d%s\n",
 		agg.TotalRequests, ColorGreen, agg.Succeeded, ColorReset, ColorRed, agg.Failed, ColorReset)
@@ -128,7 +125,7 @@ func printResults(results []models.MultiEnvResult, diffCount int, compare bool, 
 	}
 }
 
-func printLatencyStats(stats models.LatencyStats) {
+func printLatencyStats(stats LatencyStats) {
 	fmt.Printf("  min: %d  avg: %d  p50: %d  p90: %d  p95: %d  p99: %d  max: %d\n", stats.Min, stats.Avg, stats.P50, stats.P90, stats.P95, stats.P99, stats.Max)
 }
 
@@ -146,7 +143,7 @@ func formatStatus(status *int) (string, string) {
 	return fmt.Sprintf("%d", *status), ColorRed
 }
 
-func printDiff(result models.MultiEnvResult) {
+func printDiff(result MultiEnvResult) {
 	diff := result.Diff
 	if diff == nil {
 		return
@@ -193,7 +190,7 @@ func printDiff(result models.MultiEnvResult) {
 	}
 }
 
-func PrintJSONOutput(results []models.MultiEnvResult) {
+func PrintJSONOutput(results []MultiEnvResult) {
 	output := map[string]any{
 		"results": results,
 		"summary": generateSummary(results),
@@ -206,19 +203,19 @@ func PrintJSONOutput(results []models.MultiEnvResult) {
 	}
 }
 
-func generateSummary(results []models.MultiEnvResult) models.Summary {
+func generateSummary(results []MultiEnvResult) Summary {
 	agg := AggregateResults(results)
-	byTarget := map[string]models.TargetStats{}
+	byTarget := map[string]TargetStats{}
 
 	for k, v := range agg.TargetStats {
 		byTarget[k] = *v
 	}
 
-	return models.Summary{
+	return Summary{
 		TotalRequests: agg.TotalRequests,
 		Succeeded:     agg.Succeeded,
 		Failed:        agg.Failed,
-		Latency:       stats.CalculateLatencyStats(agg.Latencies),
+		Latency:       CalculateLatencyStats(agg.Latencies),
 		ByTarget:      byTarget,
 	}
 }

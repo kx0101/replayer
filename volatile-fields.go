@@ -1,4 +1,4 @@
-package comparison
+package main
 
 import (
 	"encoding/json"

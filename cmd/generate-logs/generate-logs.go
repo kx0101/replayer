@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
-	"time"
 )
 
 func main() {
@@ -14,14 +13,18 @@ func main() {
 	count := flag.Int("count", 100, "Number of log entries to generate")
 	flag.Parse()
 
-	rand.Seed(time.Now().UnixNano())
-
 	file, err := os.Create(*output)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create file: %v\n", err)
 		os.Exit(1)
 	}
-	defer file.Close()
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close file: %v\n", err)
+			os.Exit(1)
+		}
+	}()
 
 	requestTypes := []struct {
 		weight int
@@ -39,7 +42,7 @@ func main() {
 	}
 
 	for i := 0; i < *count; i++ {
-		roll := rand.Intn(totalWeight)
+		roll := rand.Intn(totalWeight) // #nosec G404
 		cumulative := 0
 		var entry map[string]any
 
@@ -52,15 +55,24 @@ func main() {
 		}
 
 		data, _ := json.Marshal(entry)
-		file.Write(data)
-		file.Write([]byte("\n"))
+		_, err := file.Write(data)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write to file: %v\n", err)
+			os.Exit(1)
+		}
+
+		_, err = file.Write([]byte("\n"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to write to file: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	fmt.Printf("Generated %d log entries to %s\n", *count, *output)
 }
 
 func generateGetUser() map[string]any {
-	userID := rand.Intn(1000) + 1
+	userID := rand.Intn(1000) + 1 // #nosec G404
 	return map[string]any{
 		"method": "GET",
 		"path":   fmt.Sprintf("/users/%d", userID),
@@ -72,10 +84,10 @@ func generateGetUser() map[string]any {
 }
 
 func generateCheckout() map[string]any {
-	numItems := rand.Intn(5) + 1
+	numItems := rand.Intn(5) + 1 // #nosec G404
 	items := make([]int, numItems)
 	for i := 0; i < numItems; i++ {
-		items[i] = rand.Intn(1000) + 1
+		items[i] = rand.Intn(1000) + 1 // #nosec G404
 	}
 
 	return map[string]any{
@@ -86,7 +98,7 @@ func generateCheckout() map[string]any {
 			"Accept":       "application/json",
 		},
 		"body": map[string]any{
-			"user_id": rand.Intn(1000) + 1,
+			"user_id": rand.Intn(1000) + 1, // #nosec G404
 			"items":   items,
 		},
 	}

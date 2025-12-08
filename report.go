@@ -1,15 +1,12 @@
-package report
+package main
 
 import (
 	"fmt"
 	"html/template"
 	"os"
 	"slices"
+	"strings"
 	"time"
-
-	"github.com/kx0101/replayer/internal/cli"
-	"github.com/kx0101/replayer/internal/models"
-	"github.com/kx0101/replayer/internal/stats"
 )
 
 type ReportData struct {
@@ -20,13 +17,13 @@ type ReportData struct {
 	Succeeded      int
 	Failed         int
 	DiffCount      int
-	Latency        models.LatencyStats
-	ByTarget       map[string]models.TargetStats
-	Results        []models.MultiEnvResult
+	Latency        LatencyStats
+	ByTarget       map[string]TargetStats
+	Results        []MultiEnvResult
 	ComparisonMode bool
 }
 
-func GenerateHTML(results []models.MultiEnvResult, args *cli.CliArgs, outputPath string) error {
+func GenerateHTML(results []MultiEnvResult, args *CliArgs, outputPath string) error {
 	data := buildReportData(results, args)
 
 	tmpl, err := template.New("report").Funcs(template.FuncMap{
@@ -37,11 +34,21 @@ func GenerateHTML(results []models.MultiEnvResult, args *cli.CliArgs, outputPath
 		return fmt.Errorf("failed to parse template: %w", err)
 	}
 
-	file, err := os.Create(outputPath)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
+	if strings.Contains(outputPath, "..") {
+		return fmt.Errorf("invalid output path: %s", outputPath)
 	}
-	defer file.Close()
+
+	file, err := os.Create(outputPath) // #nosec G304
+	if err != nil {
+		return fmt.Errorf("failed to create report file: %w", err)
+	}
+
+	defer func() {
+		err = file.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close output file: %v\n", err)
+		}
+	}()
 
 	if err := tmpl.Execute(file, data); err != nil {
 		return fmt.Errorf("failed to execute template: %w", err)
@@ -50,14 +57,14 @@ func GenerateHTML(results []models.MultiEnvResult, args *cli.CliArgs, outputPath
 	return nil
 }
 
-func buildReportData(results []models.MultiEnvResult, args *cli.CliArgs) ReportData {
+func buildReportData(results []MultiEnvResult, args *CliArgs) ReportData {
 	var totalRequests, succeeded, failed, diffCount int
 	var latencies []int64
-	targetStats := map[string]*models.TargetStats{}
+	targetStats := map[string]*TargetStats{}
 
 	if len(results) > 0 {
 		for target := range results[0].Responses {
-			targetStats[target] = &models.TargetStats{}
+			targetStats[target] = &TargetStats{}
 		}
 	}
 
@@ -73,6 +80,7 @@ func buildReportData(results []models.MultiEnvResult, args *cli.CliArgs) ReportD
 				failed++
 				ts.Failed++
 			}
+
 			latencies = append(latencies, replay.LatencyMs)
 		}
 
@@ -82,7 +90,7 @@ func buildReportData(results []models.MultiEnvResult, args *cli.CliArgs) ReportD
 	}
 
 	slices.Sort(latencies)
-	overallLatency := stats.CalculateLatencyStats(latencies)
+	overallLatency := CalculateLatencyStats(latencies)
 
 	for target, ts := range targetStats {
 		var tLat []int64
@@ -92,10 +100,10 @@ func buildReportData(results []models.MultiEnvResult, args *cli.CliArgs) ReportD
 			}
 		}
 
-		ts.Latency = stats.CalculateLatencyStats(tLat)
+		ts.Latency = CalculateLatencyStats(tLat)
 	}
 
-	byTarget := map[string]models.TargetStats{}
+	byTarget := map[string]TargetStats{}
 	for k, v := range targetStats {
 		byTarget[k] = *v
 	}

@@ -1,17 +1,15 @@
-package filters
+package main
 
 import (
-	"github.com/kx0101/replayer/internal/cli"
-	"github.com/kx0101/replayer/internal/models"
 	"strings"
 )
 
-func Apply(entries []models.LogEntry, args *cli.CliArgs) []models.LogEntry {
+func Apply(entries []LogEntry, args *CliArgs) []LogEntry {
 	if args.FilterMethod == "" && args.FilterPath == "" {
 		return entries
 	}
 
-	filtered := make([]models.LogEntry, 0)
+	filtered := make([]LogEntry, 0)
 
 	for _, entry := range entries {
 		if args.FilterMethod != "" {

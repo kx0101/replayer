@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ "*" ]
+  pull_request:
+
+jobs:
+  lint-build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.60
+ 
+      - name: Run linter
+        run: golangci-lint run ./...
+
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+
+      - name: Run gosec
+        run: gosec ./...
+
+      - name: Run tests
+        run: go test -v ./...
+
+      - name: Build CLI
+        run: go build -o replayer .

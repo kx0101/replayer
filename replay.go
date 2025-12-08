@@ -1,4 +1,4 @@
-package replay
+package main
 
 import (
 	"bytes"
@@ -8,18 +8,13 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/kx0101/replayer/internal/cli"
-	"github.com/kx0101/replayer/internal/comparison"
-	"github.com/kx0101/replayer/internal/models"
-	"github.com/kx0101/replayer/internal/progress"
 )
 
-func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
+func Run(entries []LogEntry, args *CliArgs) []MultiEnvResult {
 	semaphore := make(chan struct{}, args.Concurrency)
 	client := &http.Client{Timeout: time.Duration(args.Timeout) * time.Millisecond}
 
-	results := make([]models.MultiEnvResult, len(entries))
+	results := make([]MultiEnvResult, len(entries))
 	var rateLimiter <-chan time.Time
 	if args.RateLimit > 0 {
 		ticker := time.NewTicker(time.Second / time.Duration(args.RateLimit))
@@ -27,14 +22,14 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 		rateLimiter = ticker.C
 	}
 
-	var pBar *progress.ProgressBar
+	var pBar *ProgressBar
 	if args.ProgressBar && !args.OutputJSON {
-		pBar = progress.NewProgressBar(len(entries))
+		pBar = NewProgressBar(len(entries))
 	}
 
-	var volatileConfig *comparison.VolatileConfig
+	var volatileConfig *VolatileConfig
 	if args.IgnoreVolatile {
-		volatileConfig = comparison.ConfigFromFlags(args.IgnoreFields, args.IgnorePatterns)
+		volatileConfig = ConfigFromFlags(args.IgnoreFields, args.IgnorePatterns)
 	}
 
 	for i, entry := range entries {
@@ -42,10 +37,10 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 			<-rateLimiter
 		}
 
-		responses := make(map[string]models.ReplayResult)
+		responses := make(map[string]ReplayResult)
 		resCh := make(chan struct {
 			target string
-			res    models.ReplayResult
+			res    ReplayResult
 		}, len(args.Targets))
 
 		var wg sync.WaitGroup
@@ -59,7 +54,7 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 
 				resCh <- struct {
 					target string
-					res    models.ReplayResult
+					res    ReplayResult
 				}{target, replaySingle(i, entry, client, target, args)}
 			}(target)
 		}
@@ -70,7 +65,7 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 			responses[r.target] = r.res
 		}
 
-		result := models.MultiEnvResult{
+		result := MultiEnvResult{
 			Index:     i,
 			Request:   entry,
 			Responses: responses,
@@ -98,7 +93,7 @@ func Run(entries []models.LogEntry, args *cli.CliArgs) []models.MultiEnvResult {
 	return results
 }
 
-func replaySingle(index int, entry models.LogEntry, client *http.Client, target string, args *cli.CliArgs) models.ReplayResult {
+func replaySingle(index int, entry LogEntry, client *http.Client, target string, args *CliArgs) ReplayResult {
 	req, err := buildRequest(entry, target, args)
 	if err != nil {
 		return wrapError(index, err, 0)
@@ -110,10 +105,10 @@ func replaySingle(index int, entry models.LogEntry, client *http.Client, target 
 	}
 
 	bodyStr := string(body)
-	return models.ReplayResult{Index: index, Status: &status, LatencyMs: latency, Body: &bodyStr}
+	return ReplayResult{Index: index, Status: &status, LatencyMs: latency, Body: &bodyStr}
 }
 
-func buildRequest(entry models.LogEntry, target string, args *cli.CliArgs) (*http.Request, error) {
+func buildRequest(entry LogEntry, target string, args *CliArgs) (*http.Request, error) {
 	url := fmt.Sprintf("http://%s%s", target, entry.Path)
 	var bodyReader io.Reader
 	if len(entry.Body) > 0 && string(entry.Body) != "null" {
@@ -159,7 +154,12 @@ func doRequest(client *http.Client, req *http.Request) (body []byte, statusCode 
 	if err != nil {
 		return nil, 0, latencyMs, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err = resp.Body.Close()
+		if err != nil {
+			fmt.Printf("Failed to close response body: %v\n", err)
+		}
+	}()
 
 	body, err = io.ReadAll(resp.Body)
 	if err != nil {
@@ -169,13 +169,13 @@ func doRequest(client *http.Client, req *http.Request) (body []byte, statusCode 
 	return body, resp.StatusCode, latencyMs, nil
 }
 
-func wrapError(index int, err error, latency int64) models.ReplayResult {
+func wrapError(index int, err error, latency int64) ReplayResult {
 	if err == nil {
-		return models.ReplayResult{}
+		return ReplayResult{}
 	}
 
 	s := err.Error()
-	return models.ReplayResult{Index: index, LatencyMs: latency, Error: &s}
+	return ReplayResult{Index: index, LatencyMs: latency, Error: &s}
 }
 
 func truncate(s string, max int) string {
@@ -186,12 +186,12 @@ func truncate(s string, max int) string {
 	return s[:max] + "..."
 }
 
-func compareResponses(responses map[string]models.ReplayResult, volatileConfig *comparison.VolatileConfig, showVolatileDiffs bool) *models.ResponseDiff {
+func compareResponses(responses map[string]ReplayResult, volatileConfig *VolatileConfig, showVolatileDiffs bool) *ResponseDiff {
 	if len(responses) < 2 {
 		return nil
 	}
 
-	diff := &models.ResponseDiff{
+	diff := &ResponseDiff{
 		StatusCodes: make(map[string]int),
 		BodyDiffs:   make(map[string]string),
 		LatencyDiff: make(map[string]int64),
@@ -230,7 +230,7 @@ func compareResponses(responses map[string]models.ReplayResult, volatileConfig *
 		}
 
 		if volatileConfig != nil {
-			detailedDiff, err := comparison.DetailedCompare(firstBody, body, volatileConfig)
+			detailedDiff, err := DetailedCompare(firstBody, body, volatileConfig)
 			if err != nil {
 				if firstBody != body {
 					diff.BodyMismatch = true

@@ -1,4 +1,4 @@
-package parser
+package main
 
 import (
 	"bufio"
@@ -7,8 +7,6 @@ import (
 	"os"
 	"regexp"
 	"strings"
-
-	"github.com/kx0101/replayer/internal/models"
 )
 
 var (
@@ -34,17 +32,35 @@ func NewNginxParser(format string) *NginxParser {
 }
 
 func (p *NginxParser) ParseFile(inputPath, outputPath string) error {
-	inFile, err := os.Open(inputPath)
+	if strings.Contains(inputPath, "..") {
+		return fmt.Errorf("invalid output path: %s", inputPath)
+	}
+
+	inFile, err := os.Open(inputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to open input file: %w", err)
 	}
-	defer inFile.Close()
+	defer func() {
+		err = inFile.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close input file: %v\n", err)
+		}
+	}()
 
-	outFile, err := os.Create(outputPath)
+	if strings.Contains(outputPath, "..") {
+		return fmt.Errorf("invalid output path: %s", outputPath)
+	}
+
+	outFile, err := os.Create(outputPath) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %w", err)
 	}
-	defer outFile.Close()
+	defer func() {
+		err = outFile.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close output file: %v\n", err)
+		}
+	}()
 
 	scanner := bufio.NewScanner(inFile)
 	lineNum := 0
@@ -73,8 +89,16 @@ func (p *NginxParser) ParseFile(inputPath, outputPath string) error {
 			continue
 		}
 
-		outFile.Write(data)
-		outFile.Write([]byte("\n"))
+		_, err = outFile.Write(data)
+		if err != nil {
+			return fmt.Errorf("failed to write to output file: %w", err)
+		}
+
+		_, err = outFile.Write([]byte("\n"))
+		if err != nil {
+			return fmt.Errorf("failed to write newline to output file: %w", err)
+		}
+
 		parsed++
 	}
 
@@ -86,7 +110,7 @@ func (p *NginxParser) ParseFile(inputPath, outputPath string) error {
 	return nil
 }
 
-func (p *NginxParser) parseLine(line string) (*models.LogEntry, error) {
+func (p *NginxParser) parseLine(line string) (*LogEntry, error) {
 	var matches []string
 
 	matches = combinedLogRegex.FindStringSubmatch(line)
@@ -126,7 +150,7 @@ func (p *NginxParser) parseLine(line string) (*models.LogEntry, error) {
 	pathParts := strings.SplitN(path, "?", 2)
 	cleanPath := pathParts[0]
 
-	entry := &models.LogEntry{
+	entry := &LogEntry{
 		Method:  strings.ToUpper(method),
 		Path:    cleanPath,
 		Headers: headers,

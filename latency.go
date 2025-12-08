@@ -1,14 +1,12 @@
-package stats
+package main
 
 import (
 	"slices"
-
-	"github.com/kx0101/replayer/internal/models"
 )
 
-func CalculateLatencyStats(latencies []int64) models.LatencyStats {
+func CalculateLatencyStats(latencies []int64) LatencyStats {
 	if len(latencies) == 0 {
-		return models.LatencyStats{}
+		return LatencyStats{}
 	}
 
 	sorted := make([]int64, len(latencies))
@@ -20,7 +18,7 @@ func CalculateLatencyStats(latencies []int64) models.LatencyStats {
 		sum += lat
 	}
 
-	return models.LatencyStats{
+	return LatencyStats{
 		P50: Percentile(sorted, 50),
 		P90: Percentile(sorted, 90),
 		P95: Percentile(sorted, 95),

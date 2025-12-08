@@ -60,8 +60,16 @@ func main() {
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 	fmt.Printf("Server v2 running on http://%s/\n", addr)
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           mux,
+		ReadTimeout:       5 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 2 * time.Second,
+	}
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
 }
@@ -104,7 +112,10 @@ func (h *Handlers) getUserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handlers) checkoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -121,12 +132,16 @@ func (h *Handlers) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 
 	if len(req.Items) > 10 {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(CheckoutResponse{
+		err := json.NewEncoder(w).Encode(CheckoutResponse{
 			Success:   false,
 			Message:   "Too many items, maximum is 10",
 			CreatedAt: time.Now(),
 			RequestID: uuid.New().String(),
 		})
+		if err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
+
 		return
 	}
 
@@ -145,7 +160,10 @@ func (h *Handlers) checkoutHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	err := json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handlers) statusHandler(w http.ResponseWriter, r *http.Request) {
@@ -162,7 +180,10 @@ func (h *Handlers) statusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	err := json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 func (h *Handlers) slowHandler(w http.ResponseWriter, r *http.Request) {
@@ -182,5 +203,8 @@ func (h *Handlers) slowHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	err := json.NewEncoder(w).Encode(response)
+	if err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+	}
 }

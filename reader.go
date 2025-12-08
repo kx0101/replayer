@@ -1,4 +1,4 @@
-package reader
+package main
 
 import (
 	"bufio"
@@ -7,36 +7,46 @@ import (
 	"io"
 	"os"
 	"strings"
-
-	"github.com/kx0101/replayer/internal/cli"
-	"github.com/kx0101/replayer/internal/models"
 )
 
-func ReadEntries(args *cli.CliArgs) ([]models.LogEntry, error) {
+func ReadEntries(args *CliArgs) ([]LogEntry, error) {
 	file, err := os.Open(args.InputFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		err = file.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close file: %v\n", err)
+		}
+	}()
 
 	return parseEntries(file, args.Limit, false)
 }
 
 func DryRun(input string) error {
-	file, err := os.Open(input)
+	if strings.Contains(input, "..") {
+		return fmt.Errorf("invalid input path: %s", input)
+	}
+
+	file, err := os.Open(input) // #nosec G304
 	if err != nil {
 		return fmt.Errorf("failed to open file: %w", err)
 	}
-
-	defer file.Close()
+	defer func() {
+		err = file.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to close file: %v\n", err)
+		}
+	}()
 
 	_, err = parseEntries(file, 0, true)
 	return err
 }
 
-func parseEntries(r io.Reader, limit int, dryRun bool) ([]models.LogEntry, error) {
+func parseEntries(r io.Reader, limit int, dryRun bool) ([]LogEntry, error) {
 	scanner := bufio.NewScanner(r)
-	var entries []models.LogEntry
+	var entries []LogEntry
 	lineNum := 0
 
 	for scanner.Scan() {
@@ -72,10 +82,10 @@ func parseEntries(r io.Reader, limit int, dryRun bool) ([]models.LogEntry, error
 	return entries, nil
 }
 
-func parseLine(line string, lineNum int) (models.LogEntry, error) {
-	var entry models.LogEntry
+func parseLine(line string, lineNum int) (LogEntry, error) {
+	var entry LogEntry
 	if err := json.Unmarshal([]byte(line), &entry); err != nil {
-		return models.LogEntry{}, fmt.Errorf("invalid line %d: %w", lineNum, err)
+		return LogEntry{}, fmt.Errorf("invalid line %d: %w", lineNum, err)
 	}
 
 	return entry, nil
