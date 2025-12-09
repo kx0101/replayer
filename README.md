@@ -1,4 +1,4 @@
-# HTTP Replay Tool
+# Replayer
 
 An HTTP request replay and comparison tool written in Go. Perfect for testing API changes, comparing environments, load testing, validating migrations, and generating detailed reports
 
