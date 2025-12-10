@@ -40,6 +40,7 @@ An HTTP request replay and comparison tool written in Go. Perfect for testing AP
 ### Logs
 - **Nginx log conversion** to JSON Lines format (combined/common)
 - Supports filtering and replay directly from raw logs
+- Fully replayable: captured logs can be replayed or compared after the fact
 
 ## 🚀 Quick Start
 
@@ -185,12 +186,27 @@ cat results.json | jq '.summary.succeeded'
 Capture requests in real-time from a running service or proxy and replay/compare them on the fly
 
 ```bash
-# Capture live traffic on port 8080, forward to upstream service, save to file, and stream to stdout
+# HTTP capture
 ./replayer --capture \
   --listen :8080 \
-  --upstream http://localhost:8082 \
+  --upstream http://staging.api \
   --output traffic.json \
   --stream
+
+# HTTPS capture
+./replayer --capture \
+  --listen :8080 \
+  --upstream https://staging.api \
+  --output traffic.json \
+  --stream \
+  --tls-cert proxy.crt \
+  --tls-key proxy.key
+
+# Replay captured traffic
+./replayer --input-file traffic.json staging.api
+
+# Compare captured traffic between two environments
+./replayer --input-file traffic.json --compare staging.api production.api
 ```
 
 When you finish capturing you may use the generated `traffic.json` file to replay or compare as usual
@@ -231,30 +247,18 @@ Preview what will be replayed without sending requests:
 | `--upstream` | string | "" | URL of the real service to forward requests to |
 | `--output` | string | "" | Path to save captured requests in JSON format |
 | `--stream` | | | Optionally stream captured requests to stdout as they happen |
+| `--tls-cert` | string | "" | TLS certification |
+| `--tls-key` | string | "" | TLS key |
 
 ## Log File Format
 
-The tool expects **JSON Lines** format (one JSON object per line):
+- Each line is a single JSON object (JSON Lines)
+- Request/response bodies are base64-encoded
+- Headers are arrays to support multiple values per key
 
 ```json
-{"method":"GET","path":"/users/123","headers":{"Content-Type":["application/json"]},"body":null}
-{"method":"POST","path":"/checkout","headers":{"Content-Type":["application/json"]},"body":{"user_id":42,"items":[1,2,3]}}
-{"method":"GET","path":"/status","headers":{},"body":null}
+{"timestamp":"2025-12-10T17:12:48.377+02:00","method":"POST","path":"/test","headers":{"Content-Type":["application/json"]},"body":"SGVsbG8gd29ybGQ=","status":200,"response_headers":{"Content-Type":["application/json"]},"response_body":"eyJzdWNjZXNzIjp0cnVlfQ==","latency_ms":12}
 ```
-
-### Generating Test Logs
-
-Use the included log generator:
-
-```bash
-./generate_logs --output test.json --count 1000
-```
-
-This creates a realistic distribution of requests:
-- 40% `GET /users/{id}` 
-- 20% `POST /checkout`
-- 30% `GET /status`
-- 10% `GET /slow` (2-3 second delay)
 
 ## Output Examples
 

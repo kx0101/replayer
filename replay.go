@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -109,13 +110,24 @@ func replaySingle(index int, entry LogEntry, client *http.Client, target string,
 }
 
 func buildRequest(entry LogEntry, target string, args *CliArgs) (*http.Request, error) {
-	url := fmt.Sprintf("http://%s%s", target, entry.Path)
-	var bodyReader io.Reader
-	if len(entry.Body) > 0 && string(entry.Body) != "null" {
-		bodyReader = bytes.NewReader(entry.Body)
+	scheme := "http"
+	if args.TLSCert != "" && args.TLSKey != "" {
+		scheme = "https"
 	}
 
-	req, err := http.NewRequest(entry.Method, url, bodyReader)
+	url := fmt.Sprintf("%s://%s%s", scheme, target, entry.Path)
+
+	var r io.Reader
+	if entry.Body != "" && entry.Body != "null" {
+		b, err := base64.StdEncoding.DecodeString(entry.Body)
+		if err != nil {
+			b = []byte(entry.Body)
+		}
+
+		r = bytes.NewReader(b)
+	}
+
+	req, err := http.NewRequest(entry.Method, url, r)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +149,7 @@ func buildRequest(entry LogEntry, target string, args *CliArgs) (*http.Request, 
 		}
 	}
 
-	if bodyReader != nil && req.Header.Get("Content-Type") == "" {
+	if r != nil && req.Header.Get("Content-Type") == "" {
 		req.Header.Set("Content-Type", "application/json")
 	}
 

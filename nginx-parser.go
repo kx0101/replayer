@@ -151,10 +151,10 @@ func (p *NginxParser) parseLine(line string) (*LogEntry, error) {
 	cleanPath := pathParts[0]
 
 	entry := &LogEntry{
-		Method: strings.ToUpper(method),
-		Path:   cleanPath,
+		Method:  strings.ToUpper(method),
+		Path:    cleanPath,
 		Headers: headers,
-		Body:   nil,
+		Body:    "",
 	}
 
 	return entry, nil

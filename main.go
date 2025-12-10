@@ -35,6 +35,8 @@ func main() {
 			Upstream:   args.Upstream,
 			OutputFile: args.CaptureOut,
 			Stream:     args.CaptureStream,
+			TLSCert:    args.TLSCert,
+			TLSKey:     args.TLSKey,
 		}
 
 		if err := StartReverseProxy(config); err != nil {

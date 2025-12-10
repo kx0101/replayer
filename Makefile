@@ -6,6 +6,7 @@ build:
 	@go build -o mock-server cmd/mock-server/mock-server.go
 	@go build -o mock-server-v2 cmd/mock-server-v2/mock-server-v2.go
 	@go build -o mock-server-v3 cmd/mock-server-v3/mock-server-v3.go
+	@go build -o mock-server-v3 cmd/mock-server-tls/mock-server-tls.go
 	@go build -o generate-logs cmd/generate-logs/generate-logs.go
 	@echo "Build complete!"
 
@@ -20,7 +21,7 @@ release:
 	@echo "Release build complete!"
 
 clean:
-	@rm -f replayer mock-server mock-server-v2 mock-server-v3 generate-logs nginx-converter
+	@rm -f replayer mock-server mock-server-v2 mock-server-v3 mock-server-tls generate-logs nginx-converter
 	@rm -f *.json *.html *.log
 	@echo "Clean complete!"
 

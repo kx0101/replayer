@@ -2,6 +2,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"crypto/tls"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +22,8 @@ type CaptureConfig struct {
 	Upstream   string
 	OutputFile string
 	Stream     bool
+	TLSCert    string
+	TLSKey     string
 }
 
 type CapturedEntry struct {
@@ -26,10 +31,10 @@ type CapturedEntry struct {
 	Method          string      `json:"method"`
 	Path            string      `json:"path"`
 	Headers         http.Header `json:"headers"`
-	Body            []byte      `json:"body"`
+	Body            string      `json:"body"`
 	Status          int         `json:"status"`
 	ResponseHeaders http.Header `json:"response_headers"`
-	ResponseBody    []byte      `json:"response_body"`
+	ResponseBody    string      `json:"response_body"`
 	LatencyMs       int64       `json:"latency_ms"`
 }
 
@@ -64,6 +69,13 @@ func StartReverseProxy(config *CaptureConfig) error {
 
 	proxy := &httputil.ReverseProxy{
 		Director: func(req *http.Request) {
+			if req.Body != nil {
+				bodyBytes, _ := io.ReadAll(req.Body)
+				req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+				req.Header.Set("X-Original-Body-Buffer", base64.StdEncoding.EncodeToString(bodyBytes))
+			}
+
 			req.URL.Scheme = upURL.Scheme
 			req.URL.Host = upURL.Host
 		},
@@ -71,8 +83,8 @@ func StartReverseProxy(config *CaptureConfig) error {
 			start := time.Now()
 
 			var reqBody []byte
-			if resp.Request.Body != nil {
-				reqBody, err = io.ReadAll(resp.Request.Body)
+			if b64 := resp.Request.Header.Get("X-Original-Body-Buffer"); b64 != "" {
+				reqBody, err = base64.StdEncoding.DecodeString(b64)
 				if err != nil {
 					return err
 				}
@@ -83,22 +95,23 @@ func StartReverseProxy(config *CaptureConfig) error {
 				return err
 			}
 
-			resp.Body = io.NopCloser(strings.NewReader(string(respBody)))
+			resp.Body = io.NopCloser(bytes.NewReader(respBody))
 
 			entry := CapturedEntry{
 				Timestamp:       start,
 				Method:          resp.Request.Method,
 				Path:            resp.Request.URL.Path,
 				Headers:         resp.Request.Header,
-				Body:            reqBody,
+				Body:            base64.StdEncoding.EncodeToString(reqBody),
 				Status:          resp.StatusCode,
 				ResponseHeaders: resp.Header,
-				ResponseBody:    respBody,
+				ResponseBody:    base64.StdEncoding.EncodeToString(respBody),
 				LatencyMs:       time.Since(start).Milliseconds(),
 			}
 
 			data, _ := json.Marshal(entry)
-			fmt.Println(string(data))
+			log.Println(string(data))
+
 			_, err = writer.Write(data)
 			if err != nil {
 				return err
@@ -128,5 +141,15 @@ func StartReverseProxy(config *CaptureConfig) error {
 	}
 
 	log.Printf("Capture mode ON -- listening on %s --> %s\n", config.ListenAddr, upURL.Host)
+
+	if config.TLSCert != "" && config.TLSKey != "" {
+		tlsConfig := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
+
+		server.TLSConfig = tlsConfig
+		return server.ListenAndServeTLS(config.TLSCert, config.TLSKey)
+	}
+
 	return server.ListenAndServe()
 }

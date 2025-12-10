@@ -37,6 +37,9 @@ type CliArgs struct {
 	CaptureOut    string
 	CaptureMode   bool
 	CaptureStream bool
+
+	TLSCert string
+	TLSKey  string
 }
 
 func ParseArgs() *CliArgs {
@@ -79,6 +82,9 @@ func ParseArgs() *CliArgs {
 	flag.StringVar(&args.Upstream, "upstream", "", "Upstream server to proxy to (e.g. production.api.com)")
 	flag.StringVar(&args.CaptureOut, "output", "captured.json", "Output JSON file path")
 	flag.BoolVar(&args.CaptureStream, "stream", false, "Also stream capture records to stdout")
+
+	flag.StringVar(&args.TLSCert, "tls-cert", "", "TLS certification")
+	flag.StringVar(&args.TLSKey, "tls-key", "", "TLS key")
 
 	flag.Parse()
 

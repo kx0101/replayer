@@ -8,10 +8,10 @@ type LogEntry struct {
 	Method          string              `json:"method"`
 	Path            string              `json:"path"`
 	Headers         map[string][]string `json:"headers"`
-	Body            []byte              `json:"body"`
+	Body            string              `json:"body"`
 	Status          int                 `json:"status"`
 	ResponseHeaders map[string][]string `json:"response_headers"`
-	ResponseBody    []byte              `json:"response_body"`
+	ResponseBody    string              `json:"response_body"`
 	Timestamp       time.Time           `json:"timestamp"`
 	LatencyMs       int64               `json:"latency_ms"`
 }
