@@ -19,13 +19,35 @@ jobs:
           go-version: '1.23'
           cache: true
 
+      - name: Cache Go build cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+
+      - name: Check go mod tidy
+        run: |
+          go mod tidy
+          git diff --exit-code || (echo "Run go mod tidy" && exit 1)
+
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.60
- 
+
       - name: Run linter
         run: golangci-lint run ./...
+
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+
+      - name: Run staticcheck
+        run: staticcheck ./...
+
+      - name: Run go vet
+        run: go vet ./...
 
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
@@ -34,7 +56,8 @@ jobs:
         run: gosec ./...
 
       - name: Run tests
-        run: go test -v ./...
+        run: |
+          go test -v -race ./...
 
       - name: Build CLI
         run: go build -o replayer .

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -44,24 +45,27 @@ func DryRun(input string) error {
 }
 
 func parseEntries(r io.Reader, limit int, dryRun bool) ([]LogEntry, error) {
-	decoder := json.NewDecoder(r)
+	scanner := bufio.NewScanner(r)
 	var entries []LogEntry
 	lineNum := 0
 
-	for limit <= 0 || len(entries) < limit {
+	for scanner.Scan() {
+		if limit > 0 && len(entries) >= limit {
+			break
+		}
 
-		var entry LogEntry
-		if err := decoder.Decode(&entry); err != nil {
-			if err == io.EOF {
-				break
-			}
+		line := scanner.Text()
+		lineNum++
 
-			lineNum++
-			fmt.Fprintf(os.Stderr, "invalid JSON object %d: %v\n", lineNum, err)
+		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
-		lineNum++
+		var entry LogEntry
+		if err := json.Unmarshal([]byte(line), &entry); err != nil {
+			fmt.Fprintf(os.Stderr, "invalid JSON object %d: %v\n", lineNum, err)
+			continue
+		}
 
 		if dryRun {
 			fmt.Printf("[DRY RUN] - %d: %+v\n", lineNum, entry)
@@ -69,6 +73,10 @@ func parseEntries(r io.Reader, limit int, dryRun bool) ([]LogEntry, error) {
 		}
 
 		entries = append(entries, entry)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
 	}
 
 	return entries, nil

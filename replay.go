@@ -56,7 +56,7 @@ func Run(entries []LogEntry, args *CliArgs) []MultiEnvResult {
 				resCh <- struct {
 					target string
 					res    ReplayResult
-				}{target, replaySingle(i, entry, client, target, args)}
+				}{target, ReplaySingle(i, entry, client, target, args)}
 			}(target)
 		}
 
@@ -73,7 +73,7 @@ func Run(entries []LogEntry, args *CliArgs) []MultiEnvResult {
 		}
 
 		if args.Compare && len(args.Targets) > 1 {
-			result.Diff = compareResponses(responses, volatileConfig, args.ShowVolatileDiffs)
+			result.Diff = CompareResponses(responses, volatileConfig, args.ShowVolatileDiffs)
 		}
 
 		results[i] = result
@@ -94,22 +94,22 @@ func Run(entries []LogEntry, args *CliArgs) []MultiEnvResult {
 	return results
 }
 
-func replaySingle(index int, entry LogEntry, client *http.Client, target string, args *CliArgs) ReplayResult {
-	req, err := buildRequest(entry, target, args)
+func ReplaySingle(index int, entry LogEntry, client *http.Client, target string, args *CliArgs) ReplayResult {
+	req, err := BuildRequest(entry, target, args)
 	if err != nil {
-		return wrapError(index, err, 0)
+		return WrapError(index, err, 0)
 	}
 
 	body, status, latency, err := doRequest(client, req)
 	if err != nil {
-		return wrapError(index, err, latency)
+		return WrapError(index, err, latency)
 	}
 
 	bodyStr := string(body)
 	return ReplayResult{Index: index, Status: &status, LatencyMs: latency, Body: &bodyStr}
 }
 
-func buildRequest(entry LogEntry, target string, args *CliArgs) (*http.Request, error) {
+func BuildRequest(entry LogEntry, target string, args *CliArgs) (*http.Request, error) {
 	scheme := "http"
 	if args.TLSCert != "" && args.TLSKey != "" {
 		scheme = "https"
@@ -183,7 +183,7 @@ func doRequest(client *http.Client, req *http.Request) (body []byte, statusCode 
 	return body, resp.StatusCode, latencyMs, nil
 }
 
-func wrapError(index int, err error, latency int64) ReplayResult {
+func WrapError(index int, err error, latency int64) ReplayResult {
 	if err == nil {
 		return ReplayResult{}
 	}
@@ -192,7 +192,7 @@ func wrapError(index int, err error, latency int64) ReplayResult {
 	return ReplayResult{Index: index, LatencyMs: latency, Error: &s}
 }
 
-func truncate(s string, max int) string {
+func Truncate(s string, max int) string {
 	if len(s) <= max {
 		return s
 	}
@@ -200,7 +200,7 @@ func truncate(s string, max int) string {
 	return s[:max] + "..."
 }
 
-func compareResponses(responses map[string]ReplayResult, volatileConfig *VolatileConfig, showVolatileDiffs bool) *ResponseDiff {
+func CompareResponses(responses map[string]ReplayResult, volatileConfig *VolatileConfig, showVolatileDiffs bool) *ResponseDiff {
 	if len(responses) < 2 {
 		return nil
 	}
@@ -249,7 +249,7 @@ func compareResponses(responses map[string]ReplayResult, volatileConfig *Volatil
 				if firstBody != body {
 					diff.BodyMismatch = true
 					volatileOnly = false
-					diff.BodyDiffs[target] = truncate(body, 200)
+					diff.BodyDiffs[target] = Truncate(body, 200)
 				}
 				continue
 			}
@@ -257,7 +257,7 @@ func compareResponses(responses map[string]ReplayResult, volatileConfig *Volatil
 			if detailedDiff.StableFieldsDiff {
 				diff.BodyMismatch = true
 				volatileOnly = false
-				diff.BodyDiffs[target] = truncate(body, 200)
+				diff.BodyDiffs[target] = Truncate(body, 200)
 				diff.IgnoredFields = detailedDiff.IgnoredFields
 			} else if detailedDiff.VolatileOnly {
 				diff.BodyMismatch = true
@@ -268,12 +268,12 @@ func compareResponses(responses map[string]ReplayResult, volatileConfig *Volatil
 		} else if firstBody != body {
 			diff.BodyMismatch = true
 			volatileOnly = false
-			diff.BodyDiffs[target] = truncate(body, 200)
+			diff.BodyDiffs[target] = Truncate(body, 200)
 		}
 	}
 
 	if diff.BodyMismatch && firstTarget != "" {
-		diff.BodyDiffs[firstTarget] = truncate(firstBody, 200)
+		diff.BodyDiffs[firstTarget] = Truncate(firstBody, 200)
 	}
 
 	diff.VolatileOnly = volatileOnly && diff.BodyMismatch
