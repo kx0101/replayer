@@ -40,6 +40,9 @@ type CliArgs struct {
 
 	TLSCert string
 	TLSKey  string
+
+	RulesFile    string
+	BaselineFile string
 }
 
 func ParseArgs() *CliArgs {
@@ -85,6 +88,9 @@ func ParseArgs() *CliArgs {
 
 	flag.StringVar(&args.TLSCert, "tls-cert", "", "TLS certification")
 	flag.StringVar(&args.TLSKey, "tls-key", "", "TLS key")
+
+	flag.StringVar(&args.RulesFile, "rules", "", "Path to rules.yaml file for regression testing")
+	flag.StringVar(&args.BaselineFile, "baseline", "", "Path to baseline results JSON for comparison")
 
 	flag.Parse()
 

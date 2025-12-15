@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 )
@@ -57,6 +58,8 @@ func main() {
 
 	results := Run(filtered, args)
 
+	summary := AggregateResults(results)
+
 	if args.HTMLReport != "" {
 		if err := GenerateHTML(results, args, args.HTMLReport); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to generate HTML report: %v\n", err)
@@ -64,6 +67,49 @@ func main() {
 		}
 
 		fmt.Printf("\nHTML report generated: %s\n", args.HTMLReport)
+	}
+
+	if args.RulesFile != "" {
+		rulesConfig, err := ParseRulesFile(args.RulesFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load rules: %v\n", err)
+			os.Exit(1)
+		}
+
+		current := &ReplayRunData{
+			Results: results,
+			Summary: ConvertToSummary(summary),
+		}
+
+		var baseline *ReplayRunData
+		if args.BaselineFile != "" {
+			baseline, err = LoadBaselineFile(args.BaselineFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: failed to load baseline: %v\n", err)
+				fmt.Fprintf(os.Stderr, "Latency rules will be skipped\n")
+			}
+		}
+
+		evalResult := EvaluateRules(rulesConfig, current, baseline)
+
+		if args.OutputJSON {
+			output := map[string]any{
+				"results":         results,
+				"summary":         summary,
+				"rule_evaluation": evalResult,
+			}
+
+			encoder := json.NewEncoder(os.Stdout)
+			encoder.SetIndent("", "  ")
+			if err := encoder.Encode(output); err != nil {
+				fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+			}
+
+			os.Exit(GetExitCode(evalResult))
+		}
+
+		fmt.Fprint(os.Stderr, FormatRuleResult(evalResult))
+		os.Exit(GetExitCode(evalResult))
 	}
 
 	if args.OutputJSON {

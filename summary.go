@@ -81,6 +81,19 @@ func AggregateResults(results []MultiEnvResult) AggregatedStats {
 	}
 }
 
+func PrintJSONOutput(results []MultiEnvResult) {
+	output := map[string]any{
+		"results": results,
+		"summary": generateSummary(results),
+	}
+
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(output); err != nil {
+		fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+	}
+}
+
 func printResults(results []MultiEnvResult, diffCount int, compare bool, agg AggregatedStats) {
 	slices.Sort(agg.Latencies)
 	overallLatency := CalculateLatencyStats(agg.Latencies)
@@ -190,16 +203,18 @@ func printDiff(result MultiEnvResult) {
 	}
 }
 
-func PrintJSONOutput(results []MultiEnvResult) {
-	output := map[string]any{
-		"results": results,
-		"summary": generateSummary(results),
+func ConvertToSummary(agg AggregatedStats) Summary {
+	byTarget := make(map[string]TargetStats)
+	for target, stats := range agg.TargetStats {
+		byTarget[target] = *stats
 	}
 
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	if err := encoder.Encode(output); err != nil {
-		fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+	return Summary{
+		TotalRequests: agg.TotalRequests,
+		Succeeded:     agg.Succeeded,
+		Failed:        agg.Failed,
+		Latency:       CalculateLatencyStats(agg.Latencies),
+		ByTarget:      byTarget,
 	}
 }
 

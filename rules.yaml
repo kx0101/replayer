@@ -1,0 +1,25 @@
+rules:
+  status_mismatch:
+    max: 0
+
+  body_diff:
+    allowed: false
+    ignore:
+      - "*.timestamp"
+      - "request_id"
+      - "session_id"
+
+  latency:
+    metric: p95
+    regression_percent: 20
+
+  endpoint_rules:
+    - path: /users
+      method: GET
+      status_mismatch:
+        max: 0
+
+    - path: /slow
+      latency:
+        metric: p95
+        regression_percent: 10

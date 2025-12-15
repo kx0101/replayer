@@ -10,6 +10,7 @@ An HTTP request replay and comparison tool written in Go. Perfect for testing AP
 - **Concurrent execution** with configurable limits
 - **Smart filtering** by method, path, and limits
 - **Ignore rules** for skipping noisy or irrelevant fields during diffing
+- **Regression rules**: to automatically fail when behavioral or performance regressions are detected
 
 ### Performance & Load
 - **Rate limiting** - control requests per second
@@ -177,7 +178,6 @@ Perfect for CI/CD pipelines:
   staging.api \
   production.api > results.json
 
-# Process with jq
 cat results.json | jq '.summary.succeeded'
 ```
 
@@ -210,6 +210,70 @@ Capture requests in real-time from a running service or proxy and replay/compare
 ```
 
 When you finish capturing you may use the generated `traffic.json` file to replay or compare as usual
+
+### Regression Rules (Contract & Performance)
+
+Declare regression rules via a yaml file. Replayer allows you to fail runs automatically when behavioral or performance regressions are detected
+
+```bash
+./replayer \
+  --input-file traffic.json \
+  --compare \
+  --rules rules.yaml \
+  staging.api \
+  production.api
+```
+
+If any rule is violated the run **fails** and violations are reported
+
+**rules.yaml** example
+```yaml
+rules:
+  status_mismatch:
+    max: 0
+
+  body_diff:
+    allowed: false
+    ignore:
+      - "*.timestamp"
+      - "request_id"
+
+  latency:
+    metric: p95
+    regression_percent: 20
+
+  endpoint_rules:
+    - path: /users
+      method: GET
+      status_mismatch:
+        max: 0
+
+    - path: /slow
+      latency:
+        metric: p95
+        regression_percent: 10
+```
+
+- **Status**: fails if response status differ
+- **Body**: exact fields, or prefix/suffix wildcards
+- **Latency**: you need a baseline for this (available metrics: min, max, avg, p50, p90, p95, p99)
+
+Example:
+
+```bash
+./replayer \
+  --input-file traffic.json \
+  --compare \
+  --output-json \
+  staging.api production.api > baseline.json
+
+./replayer \
+  --input-file traffic.json \
+  --compare \
+  --rules rules.yaml \
+  --baseline baseline.json \
+  staging.api production.api
+```
 
 ### Dry Run Mode
 
@@ -249,6 +313,8 @@ Preview what will be replayed without sending requests:
 | `--stream` | | | Optionally stream captured requests to stdout as they happen |
 | `--tls-cert` | string | "" | TLS certification |
 | `--tls-key` | string | "" | TLS key |
+| `--rules` | string | "" | Path to rules.yaml file for regression testing |
+| `--baseline` | string | "" | Path to baseline results JSON for comparison |
 
 ## Log File Format
 
@@ -490,19 +556,6 @@ if [ "$DIFFS" -gt 0 ]; then
 else
   echo "Staging matches production"
 fi
-```
-
-### Analyzing Results with jq
-
-```bash
-# Get all failed requests
-cat results.json | jq '.results[] | select(.responses[].status >= 400)'
-
-# Get average latency per target
-cat results.json | jq '.summary.by_target | to_entries[] | {target: .key, avg_latency: .value.latency.avg}'
-
-# Find slowest requests
-cat results.json | jq '[.results[] | {index, path: .request.path, max_latency: [.responses[].latency_ms] | max}] | sort_by(.max_latency) | reverse | .[0:10]'
 ```
 
 ## License

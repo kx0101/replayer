@@ -3,11 +3,11 @@
 build:
 	@echo "Building replayer tool..."
 	@go build -o replayer .
-	@go build -o mock-server cmd/mock-server/mock-server.go
-	@go build -o mock-server-v2 cmd/mock-server-v2/mock-server-v2.go
-	@go build -o mock-server-v3 cmd/mock-server-v3/mock-server-v3.go
-	@go build -o mock-server-v3 cmd/mock-server-tls/mock-server-tls.go
-	@go build -o generate-logs cmd/generate-logs/generate-logs.go
+	@go build -o mock-server cmd/mock_server/mock_server.go
+	@go build -o mock-server-v2 cmd/mock_server-v2/mock_server_v2.go
+	@go build -o mock-server-v3 cmd/mock_server-v3/mock_server_v3.go
+	@go build -o mock-server-v3 cmd/mock_server-tls/mock_server_tls.go
+	@go build -o generate-logs cmd/generate_logs/generate_logs.go
 	@echo "Build complete!"
 
 release:
@@ -21,7 +21,7 @@ release:
 	@echo "Release build complete!"
 
 clean:
-	@rm -f replayer mock-server mock-server-v2 mock-server-v3 mock-server-tls generate-logs nginx-converter
+	@rm -f replayer* mock_server mock_server_v2 mock-server_v3 mock_server_tls generate_logs
 	@rm -f *.json *.html *.log
 	@echo "Clean complete!"
 
@@ -38,9 +38,9 @@ install: build
 demo: build
 	@echo "Starting demo..."
 
-	@./generate-logs --output demo.json --count 50
-	@./mock-server --port 8080 & echo $$! > .mock1.pid
-	@./mock-server-v2 --port 8081 & echo $$! > .mock2.pid
+	@./generate_logs --output demo.json --count 50
+	@./mock_server --port 8080 & echo $$! > .mock1.pid
+	@./mock_server-v2 --port 8081 & echo $$! > .mock2.pid
 
 	@sleep 1
 
