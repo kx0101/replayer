@@ -284,3 +284,13 @@ func CompareResponses(responses map[string]ReplayResult, volatileConfig *Volatil
 
 	return diff
 }
+
+func HasDiffs(results []MultiEnvResult) bool {
+	for _, r := range results {
+		if r.Diff != nil {
+			return true
+		}
+	}
+
+	return false
+}

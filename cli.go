@@ -45,7 +45,7 @@ type CliArgs struct {
 	BaselineFile string
 }
 
-func ParseArgs() *CliArgs {
+func ParseArgs() (*CliArgs, ExitCode) {
 	args := &CliArgs{}
 
 	flag.StringVar(&args.InputFile, "input-file", "", "Path to the input log file")
@@ -103,35 +103,35 @@ func ParseArgs() *CliArgs {
 		if args.InputFile == "" {
 			fmt.Fprintln(os.Stderr, "Error: --input-file is required")
 			flag.Usage()
-			os.Exit(1)
+			return nil, ExitInvalid
 		}
 
-		return args
+		return args, ExitOK
 	}
 
 	if args.CaptureMode {
 		if args.Upstream == "" {
 			fmt.Fprintln(os.Stderr, "Error: --upstream is required in capture mode")
 			flag.Usage()
-			os.Exit(1)
+			return nil, ExitInvalid
 		}
 
-		return args
+		return args, ExitOK
 	}
 
 	if args.InputFile == "" {
 		fmt.Fprintln(os.Stderr, "Error: --input-file is required")
 		flag.Usage()
-		os.Exit(1)
+		return nil, ExitInvalid
 	}
 
 	if len(args.Targets) == 0 && !args.DryRun {
 		fmt.Fprintln(os.Stderr, "Error: at least one target is required")
 		flag.Usage()
-		os.Exit(1)
+		return nil, ExitInvalid
 	}
 
-	return args
+	return args, ExitOK
 }
 
 type stringSlice []string

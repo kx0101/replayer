@@ -6,116 +6,184 @@ import (
 	"os"
 )
 
+type ExitCode int
+
+const (
+	ExitOK ExitCode = iota
+	ExitDiffs
+	ExitRules
+	ExitInvalid
+	ExitRuntime
+)
+
+var (
+	dryRun            = DryRun
+	convertNginxLogs  = ConvertNginxLogs
+	startReverseProxy = StartReverseProxy
+	readEntries       = ReadEntries
+	runReplay         = Run
+	generateHTML      = GenerateHTML
+	printSummary      = PrintSummary
+	printJSONOutput   = PrintJSONOutput
+	apply             = Apply
+	aggregateResults  = AggregateResults
+	convertToSummary  = ConvertToSummary
+)
+
 func main() {
-	args := ParseArgs()
+	os.Exit(int(run()))
+}
 
-	if args.ParseNginx != "" {
-		fmt.Printf("Converting nginx logs from %s to %s...\n", args.InputFile, args.ParseNginx)
-		if err := ConvertNginxLogs(args.InputFile, args.ParseNginx, args.NginxFormat); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to parse nginx logs: %v\n", err)
-			os.Exit(1)
-		}
-
-		return
+func run() ExitCode {
+	args, code := ParseArgs()
+	if code != ExitOK {
+		return code
 	}
 
-	if args.DryRun {
-		err := DryRun(args.InputFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Dry run failed: %v\n", err)
-			os.Exit(1)
-		}
+	return execute(args)
+}
 
-		return
+func execute(args *CliArgs) ExitCode {
+	switch {
+	case args.ParseNginx != "":
+		return runParseNginx(args)
+	case args.DryRun:
+		return runDryRun(args)
+	case args.CaptureMode:
+		return runCapture(args)
+	default:
+		return runReplayMode(args)
+	}
+}
+
+func runParseNginx(args *CliArgs) ExitCode {
+	fmt.Printf("Converting nginx logs from %s to %s...\n", args.InputFile, args.ParseNginx)
+	if err := convertNginxLogs(args.InputFile, args.ParseNginx, args.NginxFormat); err != nil {
+		return handleError("Failed to parse nginx logs", err)
 	}
 
-	if args.CaptureMode {
-		fmt.Printf("Starting reverse proxy on %s, forwarding to %s...\n", args.ListenAddr, args.Upstream)
-		config := &CaptureConfig{
-			ListenAddr: args.ListenAddr,
-			Upstream:   args.Upstream,
-			OutputFile: args.CaptureOut,
-			Stream:     args.CaptureStream,
-			TLSCert:    args.TLSCert,
-			TLSKey:     args.TLSKey,
-		}
+	return ExitOK
+}
 
-		if err := StartReverseProxy(config); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to start reverse proxy: %v\n", err)
-			os.Exit(1)
-		}
-
-		return
+func runDryRun(args *CliArgs) ExitCode {
+	if err := dryRun(args.InputFile); err != nil {
+		return handleError("Dry run failed", err)
 	}
 
-	entries, err := ReadEntries(args)
+	return ExitOK
+}
+
+func runCapture(args *CliArgs) ExitCode {
+	fmt.Printf("Starting reverse proxy on %s, forwarding to %s...\n", args.ListenAddr, args.Upstream)
+	config := &CaptureConfig{
+		ListenAddr: args.ListenAddr,
+		Upstream:   args.Upstream,
+		OutputFile: args.CaptureOut,
+		Stream:     args.CaptureStream,
+		TLSCert:    args.TLSCert,
+		TLSKey:     args.TLSKey,
+	}
+
+	if err := startReverseProxy(config); err != nil {
+		return handleError("Failed to start reverse proxy", err)
+	}
+	return ExitOK
+}
+
+func runReplayMode(args *CliArgs) ExitCode {
+	entries, err := readEntries(args)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read input file: %v\n", err)
-		os.Exit(1)
+		return handleError("failed to read input file", err)
 	}
 
-	filtered := Apply(entries, args)
+	filtered := apply(entries, args)
+	results := runReplay(filtered, args)
 
-	results := Run(filtered, args)
-
-	summary := AggregateResults(results)
+	out := &ReplayRunData{
+		Results: results,
+		Summary: convertToSummary(aggregateResults(results)),
+	}
 
 	if args.HTMLReport != "" {
-		if err := GenerateHTML(results, args, args.HTMLReport); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to generate HTML report: %v\n", err)
-			os.Exit(1)
+		if err := generateHTML(out.Results, args, args.HTMLReport); err != nil {
+			return handleError("Failed to generate HTML report", err)
 		}
-
-		fmt.Printf("\nHTML report generated: %s\n", args.HTMLReport)
 	}
 
 	if args.RulesFile != "" {
-		rulesConfig, err := ParseRulesFile(args.RulesFile)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to load rules: %v\n", err)
-			os.Exit(1)
-		}
-
-		current := &ReplayRunData{
-			Results: results,
-			Summary: ConvertToSummary(summary),
-		}
-
-		var baseline *ReplayRunData
-		if args.BaselineFile != "" {
-			baseline, err = LoadBaselineFile(args.BaselineFile)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: failed to load baseline: %v\n", err)
-				fmt.Fprintf(os.Stderr, "Latency rules will be skipped\n")
-			}
-		}
-
-		evalResult := EvaluateRules(rulesConfig, current, baseline)
-
-		if args.OutputJSON {
-			output := map[string]any{
-				"results":         results,
-				"summary":         summary,
-				"rule_evaluation": evalResult,
-			}
-
-			encoder := json.NewEncoder(os.Stdout)
-			encoder.SetIndent("", "  ")
-			if err := encoder.Encode(output); err != nil {
-				fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
-			}
-
-			os.Exit(GetExitCode(evalResult))
-		}
-
-		fmt.Fprint(os.Stderr, FormatRuleResult(evalResult))
-		os.Exit(GetExitCode(evalResult))
+		return runRules(args, out)
 	}
+
+	return outputResults(args, out)
+}
+
+func runRules(args *CliArgs, current *ReplayRunData) ExitCode {
+	rulesConfig, err := ParseRulesFile(args.RulesFile)
+	if err != nil {
+		return handleError("Failed to load rules", err)
+	}
+
+	baseline := loadBaseline(args.BaselineFile)
+	evalResult := EvaluateRules(rulesConfig, current, baseline)
 
 	if args.OutputJSON {
-		PrintJSONOutput(results)
-		os.Exit(0)
+		return outputRulesJSON(current, evalResult)
 	}
 
-	PrintSummary(results, args.Compare)
+	fmt.Fprint(os.Stderr, FormatRuleResult(evalResult))
+	return GetExitCode(evalResult)
+}
+
+func loadBaseline(baselineFile string) *ReplayRunData {
+	if baselineFile == "" {
+		return nil
+	}
+
+	baseline, err := LoadBaselineFile(baselineFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: failed to load baseline: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Latency rules will be skipped\n")
+		return nil
+	}
+
+	return baseline
+}
+
+func outputRulesJSON(current *ReplayRunData, evalResult *RuleEvaluationResult) ExitCode {
+	output := map[string]any{
+		"results":         current.Results,
+		"summary":         current.Summary,
+		"rule_evaluation": evalResult,
+	}
+
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(output); err != nil {
+		fmt.Fprintf(os.Stderr, "Error encoding JSON: %v\n", err)
+	}
+
+	return GetExitCode(evalResult)
+}
+
+func outputResults(args *CliArgs, out *ReplayRunData) ExitCode {
+	if args.OutputJSON {
+		printJSONOutput(out.Results)
+	} else {
+		printSummary(out.Results, args.Compare)
+	}
+
+	return exitForResults(args, out.Results)
+}
+
+func exitForResults(args *CliArgs, results []MultiEnvResult) ExitCode {
+	if args.Compare && HasDiffs(results) {
+		return ExitDiffs
+	}
+
+	return ExitOK
+}
+
+func handleError(msg string, err error) ExitCode {
+	fmt.Fprintf(os.Stderr, "%s: %v\n", msg, err)
+	return ExitRuntime
 }

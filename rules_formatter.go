@@ -58,11 +58,11 @@ func FormatRuleResultJSON(result *RuleEvaluationResult) (string, error) {
 }
 
 // PASS --> 0
-// FAIL (rule violation) --> 10
-func GetExitCode(result *RuleEvaluationResult) int {
+// FAIL (rule violation) --> 2
+func GetExitCode(result *RuleEvaluationResult) ExitCode {
 	if result.Passed {
-		return 0
+		return ExitOK
 	}
 
-	return 10
+	return ExitRules
 }
