@@ -43,6 +43,18 @@ An HTTP request replay and comparison tool written in Go. Perfect for testing AP
 - Supports filtering and replay directly from raw logs
 - Fully replayable: captured logs can be replayed or compared after the fact
 
+### Exit Codes
+
+Replayer returns specific exit codes to allow CI/CD pipelines and scripts to react programmatically:
+
+| Exit Code | Meaning                                                            |
+| --------- | ------------------------------------------------------------------ |
+| 0         | Run completed successfully, no differences or errors               |
+| 1         | Differences detected between targets (used with `--compare`)       |
+| 2         | One or more regression rules were violated                         |
+| 3         | Invalid arguments or command-line usage                            |
+| 4         | Runtime error occurred (network, file I/O, or unexpected failure)  |
+
 ## 🚀 Quick Start
 
 ### Installation
