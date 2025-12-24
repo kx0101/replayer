@@ -1,7 +1,7 @@
 package main
 
 type RulesConfig struct {
-	Rules Rules `yaml:"rules"`
+	Rules *Rules `yaml:"rules"`
 }
 
 type Rules struct {

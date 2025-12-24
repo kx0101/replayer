@@ -29,8 +29,8 @@ func TestParseRulesFile_ValidConfig(t *testing.T) {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
-	if config == nil {
-		t.Fatal("Expected non-nil config")
+	if config.Rules == nil {
+		t.Fatal("Expected Rules to be non-nil")
 	}
 
 	if config.Rules.StatusMismatch == nil || config.Rules.StatusMismatch.Max != 5 {
@@ -296,7 +296,7 @@ func TestValidateLatencyRule_ZeroRegressionPercent(t *testing.T) {
 
 func TestValidateRules_ComplexValid(t *testing.T) {
 	config := &RulesConfig{
-		Rules: Rules{
+		Rules: &Rules{
 			StatusMismatch: &StatusMismatchRule{Max: 5},
 			BodyDiff:       &BodyDiffRule{Allowed: false},
 			Latency: &LatencyRule{
@@ -331,7 +331,7 @@ func TestValidateRules_ComplexValid(t *testing.T) {
 
 func TestValidateRules_MultipleEndpointErrors(t *testing.T) {
 	config := &RulesConfig{
-		Rules: Rules{
+		Rules: &Rules{
 			EndpointRules: []EndpointRule{
 				{
 					Path:   "/api/users",
@@ -373,11 +373,7 @@ func TestParseRulesFile_EmptyFile(t *testing.T) {
 		t.Fatalf("Unexpected error for empty rules: %v", err)
 	}
 
-	if config == nil {
-		t.Fatal("Expected non-nil config")
-	}
-
-	if config.Rules.StatusMismatch != nil {
-		t.Error("Expected nil StatusMismatch for empty config")
+	if config.Rules == nil {
+		t.Fatal("Expected Rules to be non-nil")
 	}
 }

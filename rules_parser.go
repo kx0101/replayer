@@ -25,7 +25,7 @@ func ParseRulesFile(path string) (*RulesConfig, error) {
 }
 
 func validateRules(config *RulesConfig) error {
-	rules := &config.Rules
+	rules := config.Rules
 
 	if rules.Latency != nil {
 		if err := validateLatencyRule(rules.Latency); err != nil {

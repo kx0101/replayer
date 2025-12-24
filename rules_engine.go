@@ -15,7 +15,7 @@ func EvaluateRules(config *RulesConfig, current *ReplayRunData, baseline *Replay
 		Failures: []RuleFailure{},
 	}
 
-	rules := &config.Rules
+	rules := config.Rules
 
 	if rules.StatusMismatch != nil {
 		failures := evaluateStatusMismatchRule(rules.StatusMismatch, current.Results, "global")

@@ -28,6 +28,7 @@ type MultiEnvResult struct {
 	Index     int
 	Request   LogEntry
 	Responses map[string]ReplayResult
+	RequestID string
 	Diff      *ResponseDiff `json:"diff,omitempty"`
 }
 
