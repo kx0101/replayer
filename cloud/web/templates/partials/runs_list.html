@@ -1,0 +1,81 @@
+{{define "runs_list"}}
+<div id="runs-list">
+    {{if .Runs}}
+    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+        <table class="min-w-full divide-y divide-gray-300">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Environment</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Requests</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Success</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">P95 Latency</th>
+                    <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Baseline</th>
+                    <th scope="col" class="relative py-3.5 pl-3 pr-4 sm:pr-6">
+                        <span class="sr-only">Actions</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-200 bg-white">
+                {{range .Runs}}
+                <tr>
+                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">
+                        {{.Environment}}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {{.CreatedAt.Format "Jan 02, 15:04"}}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {{.TotalRequests}}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm">
+                        {{if eq .Failed 0}}
+                        <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                            100%
+                        </span>
+                        {{else}}
+                        <span class="inline-flex items-center rounded-full bg-yellow-100 px-2.5 py-0.5 text-xs font-medium text-yellow-800">
+                            {{if .TotalRequests}}{{printf "%.1f" (divFloat (mul .Succeeded 100) .TotalRequests)}}%{{else}}0%{{end}}
+                        </span>
+                        {{end}}
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                        {{.LatencyStats.P95}}ms
+                    </td>
+                    <td class="whitespace-nowrap px-3 py-4 text-sm">
+                        {{if .IsBaseline}}
+                        <span class="inline-flex items-center rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-medium text-indigo-800">
+                            Baseline
+                        </span>
+                        {{else}}
+                        <button
+                            hx-post="/htmx/runs/{{.ID}}/baseline"
+                            hx-swap="outerHTML"
+                            hx-target="closest tr"
+                            class="text-indigo-600 hover:text-indigo-900 text-xs">
+                            Set as baseline
+                        </button>
+                        {{end}}
+                    </td>
+                    <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium sm:pr-6">
+                        <a href="/runs/{{.ID}}" class="text-indigo-600 hover:text-indigo-900 mr-4">View</a>
+                        {{if not .IsBaseline}}
+                        <a href="/runs/{{.ID}}/compare" class="text-indigo-600 hover:text-indigo-900">Compare</a>
+                        {{end}}
+                    </td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+    {{else}}
+    <div class="text-center py-12">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No runs yet</h3>
+        <p class="mt-1 text-sm text-gray-500">Get started by running replayer with your API key.</p>
+    </div>
+    {{end}}
+</div>
+{{end}}

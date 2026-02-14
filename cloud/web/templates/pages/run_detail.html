@@ -1,0 +1,129 @@
+{{define "title"}}Run Details - Replayer Cloud{{end}}
+
+{{define "content"}}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="mb-6">
+        <a href="/" class="text-indigo-600 hover:text-indigo-900 text-sm">&larr; Back to runs</a>
+    </div>
+
+    <div class="bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6 flex justify-between items-center">
+            <div>
+                <h3 class="text-lg leading-6 font-medium text-gray-900">
+                    Run Details
+                </h3>
+                <p class="mt-1 max-w-2xl text-sm text-gray-500">
+                    {{.Run.Environment}} - {{.Run.CreatedAt.Format "Jan 02, 2006 15:04:05 MST"}}
+                </p>
+            </div>
+            <div class="flex items-center space-x-4">
+                {{if .Run.IsBaseline}}
+                <span class="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-800">
+                    Baseline
+                </span>
+                {{else}}
+                <button
+                    hx-post="/htmx/runs/{{.Run.ID}}/baseline"
+                    hx-swap="innerHTML"
+                    hx-target="#baseline-btn"
+                    id="baseline-btn"
+                    class="inline-flex items-center px-3 py-1 border border-indigo-600 text-sm font-medium rounded-md text-indigo-600 hover:bg-indigo-50">
+                    Set as baseline
+                </button>
+                <a href="/runs/{{.Run.ID}}/compare" class="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                    Compare to baseline
+                </a>
+                {{end}}
+            </div>
+        </div>
+        <div class="border-t border-gray-200">
+            <dl>
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Targets</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        {{range .Run.Targets}}
+                        <span class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 mr-2">
+                            {{.}}
+                        </span>
+                        {{end}}
+                    </dd>
+                </div>
+                <div class="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Total Requests</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{{.Run.TotalRequests}}</dd>
+                </div>
+                <div class="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
+                    <dt class="text-sm font-medium text-gray-500">Success Rate</dt>
+                    <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
+                        {{if eq .Run.Failed 0}}
+                        <span class="text-green-600">100% ({{.Run.Succeeded}} / {{.Run.TotalRequests}})</span>
+                        {{else}}
+                        <span class="text-yellow-600">{{printf "%.1f" (divFloat (mul .Run.Succeeded 100) .Run.TotalRequests)}}% ({{.Run.Succeeded}} / {{.Run.TotalRequests}})</span>
+                        {{end}}
+                    </dd>
+                </div>
+            </dl>
+        </div>
+    </div>
+
+    <div class="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Latency Statistics</h3>
+        </div>
+        <div class="border-t border-gray-200">
+            <div class="grid grid-cols-4 gap-4 p-6">
+                <div class="text-center">
+                    <p class="text-2xl font-semibold text-gray-900">{{.Run.LatencyStats.P50}}ms</p>
+                    <p class="text-sm text-gray-500">P50</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-2xl font-semibold text-gray-900">{{.Run.LatencyStats.P90}}ms</p>
+                    <p class="text-sm text-gray-500">P90</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-2xl font-semibold text-gray-900">{{.Run.LatencyStats.P95}}ms</p>
+                    <p class="text-sm text-gray-500">P95</p>
+                </div>
+                <div class="text-center">
+                    <p class="text-2xl font-semibold text-gray-900">{{.Run.LatencyStats.P99}}ms</p>
+                    <p class="text-sm text-gray-500">P99</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{if .Run.ByTarget}}
+    <div class="mt-8 bg-white shadow overflow-hidden sm:rounded-lg">
+        <div class="px-4 py-5 sm:px-6">
+            <h3 class="text-lg leading-6 font-medium text-gray-900">Per-Target Statistics</h3>
+        </div>
+        <div class="border-t border-gray-200">
+            <table class="min-w-full divide-y divide-gray-300">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Target</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Success</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Failed</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">P50</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">P95</th>
+                        <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">P99</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200 bg-white">
+                    {{range $target, $stats := .Run.ByTarget}}
+                    <tr>
+                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">{{$target}}</td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-green-600">{{$stats.Succeeded}}</td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-red-600">{{$stats.Failed}}</td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{$stats.Latency.P50}}ms</td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{$stats.Latency.P95}}ms</td>
+                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{$stats.Latency.P99}}ms</td>
+                    </tr>
+                    {{end}}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {{end}}
+</div>
+{{end}}

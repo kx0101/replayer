@@ -295,6 +295,74 @@ Preview what will be replayed without sending requests:
 ./replayer --input-file test_logs.json --dry-run
 ```
 
+### Cloud Upload
+
+Upload replay results to Replayer Cloud for tracking, comparison, and team collaboration:
+
+```bash
+# set your API key (or use --cloud-api-key flag)
+export REPLAYER_API_KEY="rp_your_api_key_here"
+
+# upload results to cloud
+./replayer \
+  --input-file traffic.json \
+  --compare \
+  --cloud \
+  --cloud-env production \
+  --cloud-label "version=v1.2.3" \
+  --cloud-label "branch=main" \
+  staging.api \
+  production.api
+
+**What you get:**
+- Historical tracking of all replay runs
+- Web UI for viewing results and diffs
+- Baseline comparison across runs
+- Team collaboration with shared results
+
+## Replayer Cloud
+
+Replayer Cloud is a self-hosted SaaS platform for storing, comparing, and analyzing replay results with:
+
+- Register, login, email verification
+- Generate API keys for CLI access
+- Browse and search all replay runs
+- Set baselines and compare new runs
+- Organize runs by environment
+
+### Running Replayer Cloud
+
+```bash
+export DATABASE_URL="postgres://user:pass@localhost/replayer?sslmode=disable"
+export SESSION_SECRET="your-32-character-secret-key-here"
+export BASE_URL="http://localhost:8090"
+go run ./cmd/server
+```
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `SESSION_SECRET` | Yes | 32+ character secret for session encryption |
+| `BASE_URL` | Yes | Public URL for email links |
+| `SECURE_COOKIES` | No | Set to `true` in production (default: false) |
+| `SMTP_HOST` | No | SMTP server host for email verification |
+| `SMTP_PORT` | No | SMTP server port (default: 587) |
+| `SMTP_USER` | No | SMTP username |
+| `SMTP_PASSWORD` | No | SMTP password |
+| `SMTP_FROM` | No | From address for emails |
+
+### API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/v1/runs` | Upload a new run |
+| GET | `/api/v1/runs` | List runs (paginated) |
+| GET | `/api/v1/runs/{id}` | Get run details |
+| POST | `/api/v1/runs/{id}/baseline` | Set run as baseline |
+| GET | `/api/v1/compare/{id}` | Compare run with baseline |
+
 ## Command-Line Options
 
 | Flag | Type | Default | Description |
@@ -327,6 +395,11 @@ Preview what will be replayed without sending requests:
 | `--tls-key` | string | "" | TLS key |
 | `--rules` | string | "" | Path to rules.yaml file for regression testing |
 | `--baseline` | string | "" | Path to baseline results JSON for comparison |
+| `--cloud` | bool | false | Upload results to Replayer Cloud |
+| `--cloud-url` | string | `$REPLAYER_CLOUD_URL` or `http://localhost:8090` | Replayer Cloud server URL |
+| `--cloud-api-key` | string | `$REPLAYER_API_KEY` | API key for cloud authentication |
+| `--cloud-env` | string | "default" | Environment name for cloud upload |
+| `--cloud-label` | string | "" | Label in `key=value` format (repeatable) |
 
 ## Log File Format
 
