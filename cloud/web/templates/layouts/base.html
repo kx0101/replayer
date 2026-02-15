@@ -1,0 +1,37 @@
+{{define "base"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{template "title" .}}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+        .htmx-request .htmx-indicator { opacity: 1; }
+        .htmx-request.htmx-indicator { opacity: 1; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    {{if .User}}
+    {{template "nav" .}}
+    {{end}}
+
+    <main class="{{if .User}}pt-4{{else}}pt-8{{end}}">
+        {{if .Flash}}
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-4">
+            <div class="rounded-md {{if eq .Flash.Type "success"}}bg-green-50 border-green-200{{else if eq .Flash.Type "error"}}bg-red-50 border-red-200{{else}}bg-blue-50 border-blue-200{{end}} border p-4">
+                <p class="text-sm {{if eq .Flash.Type "success"}}text-green-700{{else if eq .Flash.Type "error"}}text-red-700{{else}}text-blue-700{{end}}">
+                    {{.Flash.Message}}
+                </p>
+            </div>
+        </div>
+        {{end}}
+
+        {{template "content" .}}
+    </main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,44 @@
+{{define "title"}}Dashboard - Replayer Cloud{{end}}
+
+{{define "content"}}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="sm:flex sm:items-center">
+        <div class="sm:flex-auto">
+            <h1 class="text-2xl font-semibold text-gray-900">Replay Runs</h1>
+            <p class="mt-2 text-sm text-gray-700">
+                A list of all replay runs for your account.
+            </p>
+        </div>
+    </div>
+
+    <div class="mt-6">
+        <form method="GET" action="/" class="flex items-center space-x-4">
+            <div>
+                <label for="environment" class="sr-only">Environment</label>
+                <select id="environment" name="environment"
+                        class="block w-full rounded-md border-gray-300 py-2 pl-3 pr-10 text-base focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm"
+                        hx-get="/htmx/runs"
+                        hx-target="#runs-list"
+                        hx-trigger="change"
+                        hx-include="[name='environment']">
+                    <option value="">All environments</option>
+                    {{range .Environments}}
+                    <option value="{{.}}" {{if eq . $.Environment}}selected{{end}}>{{.}}</option>
+                    {{end}}
+                </select>
+            </div>
+            <noscript>
+                <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                    Filter
+                </button>
+            </noscript>
+        </form>
+    </div>
+
+    <div class="mt-8">
+        {{template "runs_list" .}}
+    </div>
+
+    {{template "pagination" .}}
+</div>
+{{end}}

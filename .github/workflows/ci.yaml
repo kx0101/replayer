@@ -27,37 +27,66 @@ jobs:
             ~/go/pkg/mod
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
 
-      - name: Check go mod tidy
+      - name: Check go mod tidy (root module)
         run: |
           go mod tidy
           git diff --exit-code || (echo "Run go mod tidy" && exit 1)
+
+      - name: Check go mod tidy (cloud module)
+        working-directory: cloud
+        run: |
+          go mod tidy
+          git diff --exit-code || (echo "Run go mod tidy in cloud/" && exit 1)
 
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.60
 
-      - name: Run linter
+      - name: Run linter (root module)
+        run: golangci-lint run ./...
+
+      - name: Run linter (cloud module)
+        working-directory: cloud
         run: golangci-lint run ./...
 
       - name: Install staticcheck
         run: go install honnef.co/go/tools/cmd/staticcheck@latest
 
-      - name: Run staticcheck
+      - name: Run staticcheck (root module)
         run: staticcheck ./...
 
-      - name: Run go vet
+      - name: Run staticcheck (cloud module)
+        working-directory: cloud
+        run: staticcheck ./...
+
+      - name: Run go vet (root module)
+        run: go vet ./...
+
+      - name: Run go vet (cloud module)
+        working-directory: cloud
         run: go vet ./...
 
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
 
-      - name: Run gosec
+      - name: Run gosec (root module)
+        run: gosec ./cmd/... ./internal/...
+
+      - name: Run gosec (cloud module)
+        working-directory: cloud
         run: gosec ./...
 
-      - name: Run tests
-        run: |
-          go test -v -race ./...
+      - name: Run tests (root module)
+        run: go test -v -race ./...
+
+      - name: Run tests (cloud module)
+        working-directory: cloud
+        run: go test -v -race ./...
 
       - name: Build CLI
-        run: go build -o replayer .
+        run: go build -o replayer ./cmd/replayer
+
+      - name: Build Cloud Server
+        working-directory: cloud
+        run: go build -o replayer-cloud ./cmd/server

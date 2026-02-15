@@ -14,10 +14,10 @@ func main() {
 
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
-		log.Printf("[TLS MOCK] %s %s Body=%q\n", r.Method, r.URL.Path, string(body))
+		log.Printf("[TLS MOCK] %s %s Body=%q\n", r.Method, r.URL.Path, string(body)) //#nosec G706 -- Test mock server, log injection not a concern
 
 		w.Header().Set("Content-Type", "application/json")
-		_, err := fmt.Fprintf(w, `{"ok":true,"from":"tls-mock","path":"%s"}`, r.URL.Path)
+		_, err := fmt.Fprintf(w, `{"ok":true,"from":"tls-mock","path":%q}`, r.URL.Path) //#nosec G705 -- Using %q for proper JSON escaping
 		if err != nil {
 			http.Error(w, "error", http.StatusBadRequest)
 		}
