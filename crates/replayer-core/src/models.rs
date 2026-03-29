@@ -25,7 +25,6 @@ pub struct LogEntry {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReplayResult {
-    #[serde(skip_serializing)]
     pub index: i32,
     pub status: Option<i32>,
     pub latency_ms: i64,
@@ -38,7 +37,6 @@ pub struct MultiEnvResult {
     pub index: i32,
     pub request: LogEntry,
     pub responses: HashMap<String, ReplayResult>,
-    #[serde(skip_serializing)]
     pub request_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diff: Option<ResponseDiff>,
