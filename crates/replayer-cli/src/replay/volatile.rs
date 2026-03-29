@@ -91,7 +91,7 @@ pub fn detailed_compare(
 
     Ok(VolatileDiff {
         has_diff: raw_diff,
-        volatile_only: raw_diff && !normalized_equal,
+        volatile_only: raw_diff && normalized_equal,
         stable_fields_diff: !normalized_equal,
         normalized_body1: nb1,
         normalized_body2: nb2,
