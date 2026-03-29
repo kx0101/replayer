@@ -1,0 +1,29 @@
+{% if TotalPages > 1 %}
+<nav class="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 mt-4" aria-label="Pagination">
+    <div class="hidden sm:block">
+        <p class="text-sm text-gray-700">
+            Showing
+            <span class="font-medium">{{ Offset + 1 }}</span>
+            to
+            <span class="font-medium">{{ min_val(a=Offset + Limit, b=Total) }}</span>
+            of
+            <span class="font-medium">{{ Total }}</span>
+            results
+        </p>
+    </div>
+    <div class="flex flex-1 justify-between sm:justify-end">
+        {% if Page > 1 %}
+        <a href="?page={{ Page - 1 }}{% if Environment %}&environment={{ Environment }}{% endif %}"
+           class="relative inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Previous
+        </a>
+        {% endif %}
+        {% if Page < TotalPages %}
+        <a href="?page={{ Page + 1 }}{% if Environment %}&environment={{ Environment }}{% endif %}"
+           class="relative ml-3 inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50">
+            Next
+        </a>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}

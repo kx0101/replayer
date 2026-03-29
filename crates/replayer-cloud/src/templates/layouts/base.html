@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Replayer Cloud{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+        .htmx-request .htmx-indicator { opacity: 1; }
+        .htmx-request.htmx-indicator { opacity: 1; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    {% if User %}
+    {% include "partials/nav.html" %}
+    {% endif %}
+
+    <main class="{% if User %}pt-4{% else %}pt-8{% endif %}">
+        {% if Flash %}
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-4">
+            <div class="rounded-md {% if Flash.type == 'success' %}bg-green-50 border-green-200{% elif Flash.type == 'error' %}bg-red-50 border-red-200{% else %}bg-blue-50 border-blue-200{% endif %} border p-4">
+                <p class="text-sm {% if Flash.type == 'success' %}text-green-700{% elif Flash.type == 'error' %}text-red-700{% else %}text-blue-700{% endif %}">
+                    {{ Flash.message }}
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

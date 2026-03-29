@@ -13,80 +13,40 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          go-version: '1.23'
-          cache: true
+          components: clippy, rustfmt
 
-      - name: Cache Go build cache
+      - name: Cache cargo
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/go-build
-            ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
-      - name: Check go mod tidy (root module)
-        run: |
-          go mod tidy
-          git diff --exit-code || (echo "Run go mod tidy" && exit 1)
+      - name: Check formatting
+        run: cargo fmt --check
 
-      - name: Check go mod tidy (cloud module)
-        working-directory: cloud
-        run: |
-          go mod tidy
-          git diff --exit-code || (echo "Run go mod tidy in cloud/" && exit 1)
+      - name: Run clippy
+        run: cargo clippy --workspace -- -D warnings
 
-      - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v6
+      - name: Run tests
+        run: cargo test --workspace
+
+      - name: Build release binaries
+        run: cargo build --release --workspace
+
+      - name: Upload CLI binary
+        uses: actions/upload-artifact@v4
         with:
-          version: v1.60
+          name: replayer-cli-linux-amd64
+          path: target/release/replayer
 
-      - name: Run linter (root module)
-        run: golangci-lint run ./...
-
-      - name: Run linter (cloud module)
-        working-directory: cloud
-        run: golangci-lint run ./...
-
-      - name: Install staticcheck
-        run: go install honnef.co/go/tools/cmd/staticcheck@latest
-
-      - name: Run staticcheck (root module)
-        run: staticcheck ./...
-
-      - name: Run staticcheck (cloud module)
-        working-directory: cloud
-        run: staticcheck ./...
-
-      - name: Run go vet (root module)
-        run: go vet ./...
-
-      - name: Run go vet (cloud module)
-        working-directory: cloud
-        run: go vet ./...
-
-      - name: Install gosec
-        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
-
-      - name: Run gosec (root module)
-        run: gosec ./cmd/... ./internal/...
-
-      - name: Run gosec (cloud module)
-        working-directory: cloud
-        run: gosec ./...
-
-      - name: Run tests (root module)
-        run: go test -v -race ./...
-
-      - name: Run tests (cloud module)
-        working-directory: cloud
-        run: go test -v -race ./...
-
-      - name: Build CLI
-        run: go build -o replayer ./cmd/replayer
-
-      - name: Build Cloud Server
-        working-directory: cloud
-        run: go build -o replayer-cloud ./cmd/server
+      - name: Upload Cloud binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: replayer-cloud-linux-amd64
+          path: target/release/replayer-cloud

@@ -1,6 +1,6 @@
 # Replayer
 
-An HTTP request replay and comparison tool written in Go. Perfect for testing API changes, comparing environments, load testing, validating migrations, and generating detailed reports
+An HTTP request replay and comparison tool written in Rust. Perfect for testing API changes, comparing environments, load testing, validating migrations, and generating detailed reports
 
 ## Features
 
@@ -66,11 +66,7 @@ cd replayer
 
 # Build all components
 make build
-
-make demo
 ```
-
-Once it's finished, the demo.html will open up on your browser
 
 ## Usage Guide
 
@@ -336,7 +332,7 @@ Replayer Cloud is a self-hosted SaaS platform for storing, comparing, and analyz
 export DATABASE_URL="postgres://user:pass@localhost/replayer?sslmode=disable"
 export SESSION_SECRET="your-32-character-secret-key-here"
 export BASE_URL="http://localhost:8090"
-go run ./cmd/server
+cargo run -p replayer-cloud
 ```
 
 ### Environment Variables
